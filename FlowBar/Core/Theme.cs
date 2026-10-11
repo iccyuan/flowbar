@@ -51,4 +51,34 @@ public static class Theme
     }
 
     public static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex)!;
+
+    /// <summary>
+    /// Taskbar text colour presets. Each has a bright variant for dark taskbars and a deep variant
+    /// for light ones; upload and download rows may differ.
+    /// </summary>
+    public sealed record Scheme(string Key, string Name, string UpOnDark, string DownOnDark, string UpOnLight, string DownOnLight);
+
+    public static readonly Scheme[] Schemes =
+    {
+        new("duo-blue-amber", "双色 · 蓝 / 琥珀", "#FBBF24", "#7CB8FF", "#C2410C", "#1D4ED8"),
+        new("duo-teal-green", "双色 · 青 / 绿",  "#4ADE80", "#22D3EE", "#15803D", "#0E7490"),
+        new("duo-pink-violet", "双色 · 粉 / 紫", "#F9A8D4", "#C4B5FD", "#BE185D", "#6D28D9"),
+        new("sky",    "天蓝", "#7DD3FC", "#7DD3FC", "#0369A1", "#0369A1"),
+        new("mint",   "薄荷", "#6EE7B7", "#6EE7B7", "#047857", "#047857"),
+        new("amber",  "琥珀", "#FCD34D", "#FCD34D", "#B45309", "#B45309"),
+        new("rose",   "玫红", "#FDA4AF", "#FDA4AF", "#BE123C", "#BE123C"),
+        new("violet", "紫罗兰", "#C4B5FD", "#C4B5FD", "#6D28D9", "#6D28D9"),
+    };
+
+    /// <summary>Resolves (upload, download) colours for a scheme key on a dark or light backdrop.</summary>
+    public static (Color up, Color down) SchemeColors(string? key, bool darkBackdrop)
+    {
+        var s = Schemes.FirstOrDefault(x => x.Key == key);
+        if (s == null)
+        {
+            var c = darkBackdrop ? Colors.White : Color.FromRgb(0x1B, 0x1B, 0x1B);
+            return (c, c);
+        }
+        return darkBackdrop ? (Hex(s.UpOnDark), Hex(s.DownOnDark)) : (Hex(s.UpOnLight), Hex(s.DownOnLight));
+    }
 }

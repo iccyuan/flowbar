@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using FlowBar.Core;
 
@@ -29,13 +30,12 @@ public partial class DetailPopup : Window
     /// <summary>Positions the card next to <paramref name="anchor"/> (screen px) and shows it.</summary>
     public void ShowAt(RECT anchor, bool openBelow, bool verticalBar)
     {
-        if (_hwnd == IntPtr.Zero)
-        {
-            _hwnd = new WindowInteropHelper(this).EnsureHandle();
-            int pref = 2; // DWMWCP_ROUND, harmless no-op on a layered window
-            Native.DwmSetWindowAttribute(_hwnd, 33, ref pref, sizeof(int));
-        }
+        // No DWM corner/border attributes here: on a layered window Windows 11 would paint its own
+        // rounded frame around the whole window rect, i.e. a second outline outside the card.
+        if (_hwnd == IntPtr.Zero) _hwnd = new WindowInteropHelper(this).EnsureHandle();
 
+        // A finished fade-in animation still holds Opacity at 1; release it before hiding again.
+        BeginAnimation(OpacityProperty, null);
         Opacity = 0;
         Show();
         UpdateLayout();
@@ -61,7 +61,10 @@ public partial class DetailPopup : Window
         x = Math.Clamp(x, mi.rcWork.Left - shadow + 4, Math.Max(mi.rcWork.Left, mi.rcWork.Right - w + shadow - 4));
         y = Math.Clamp(y, mi.rcWork.Top - shadow + 4, Math.Max(mi.rcWork.Top, mi.rcWork.Bottom - h + shadow - 4));
 
+        // Snapshot what will be behind the card (we're fully transparent right now), then place it.
+        FrostedGlass.Capture(new RECT { Left = x + shadow - 4, Top = y + shadow - 4, Right = x + w - shadow + 4, Bottom = y + h - shadow + 4 });
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, w, h, Native.SWP_SHOWWINDOW);
+        FrostedGlass.Refresh(Glass);
         Activate();
         BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120)));
     }
@@ -95,33 +98,60 @@ public partial class DetailPopup : Window
 
         double max = 1024; // never flatter than 1 KB/s full scale
         for (int i = from; i < n; i++) max = Math.Max(max, Math.Max(_rx[i], _tx[i]));
-        max *= 1.1;
+        const double top = 18; // headroom so the labels along the top never sit on a spike
 
-        var rxPts = new System.Windows.Media.PointCollection();
-        var txPts = new System.Windows.Media.PointCollection();
-        var rxFill = new System.Windows.Media.PointCollection();
-        var txFill = new System.Windows.Media.PointCollection();
+        var rx = new List<Point>(count);
+        var tx = new List<Point>(count);
         double step = w / (window - 1);
         double x0 = w - (count - 1) * step;
         for (int i = 0; i < count; i++)
         {
             double x = x0 + i * step;
-            double ry = h - 2 - (h - 4) * _rx[from + i] / max;
-            double ty = h - 2 - (h - 4) * _tx[from + i] / max;
-            rxPts.Add(new Point(x, ry));
-            txPts.Add(new Point(x, ty));
+            rx.Add(new Point(x, h - 2 - (h - 2 - top) * _rx[from + i] / max));
+            tx.Add(new Point(x, h - 2 - (h - 2 - top) * _tx[from + i] / max));
         }
-        if (count > 1)
-        {
-            rxFill.Add(new Point(x0, h)); foreach (var p in rxPts) rxFill.Add(p); rxFill.Add(new Point(w, h));
-            txFill.Add(new Point(x0, h)); foreach (var p in txPts) txFill.Add(p); txFill.Add(new Point(w, h));
-        }
-        RxLine.Points = rxPts; TxLine.Points = txPts;
-        RxFill.Points = rxFill; TxFill.Points = txFill;
-        var (mv, mu) = Formatting.Rate(max / 1.1, _cfg.Unit);
+        RxLine.Data = Smooth(rx, h, closed: false);
+        RxFill.Data = Smooth(rx, h, closed: true);
+        TxLine.Data = Smooth(tx, h, closed: false);
+        TxFill.Data = Smooth(tx, h, closed: true);
+        RxFill.Fill = Fade(((SolidColorBrush)FindResource("Accent")).Color);
+        TxFill.Fill = Fade(((SolidColorBrush)FindResource("AccentTx")).Color);
+        var (mv, mu) = Formatting.Rate(max, _cfg.Unit);
         ChartMax.Text = $"峰值 {mv} {mu}";
         int span = Math.Max(1, (int)Math.Round(count * sampler.IntervalMs / 1000.0));
         ChartSpan.Text = span >= 60 ? $"最近 {span / 60} 分钟" : $"最近 {span} 秒";
+    }
+
+    /// <summary>Catmull-Rom spline through the samples, optionally closed down to the baseline.</summary>
+    private static Geometry Smooth(List<Point> pts, double baseline, bool closed)
+    {
+        if (pts.Count < 2) return Geometry.Empty;
+        var fig = new PathFigure { StartPoint = pts[0], IsClosed = false, IsFilled = closed };
+        for (int i = 0; i < pts.Count - 1; i++)
+        {
+            Point p0 = pts[Math.Max(i - 1, 0)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.Min(i + 2, pts.Count - 1)];
+            var c1 = new Point(p1.X + (p2.X - p0.X) / 6, p1.Y + (p2.Y - p0.Y) / 6);
+            var c2 = new Point(p2.X - (p3.X - p1.X) / 6, p2.Y - (p3.Y - p1.Y) / 6);
+            fig.Segments.Add(new BezierSegment(c1, c2, p2, true));
+        }
+        if (closed)
+        {
+            fig.Segments.Add(new LineSegment(new Point(pts[^1].X, baseline), false));
+            fig.Segments.Add(new LineSegment(new Point(pts[0].X, baseline), false));
+            fig.IsClosed = true;
+        }
+        var g = new PathGeometry();
+        g.Figures.Add(fig);
+        g.Freeze();
+        return g;
+    }
+
+    private static LinearGradientBrush Fade(Color c)
+    {
+        var b = new LinearGradientBrush(
+            Color.FromArgb(0x5C, c.R, c.G, c.B), Color.FromArgb(0x06, c.R, c.G, c.B), new Point(0, 0), new Point(0, 1));
+        b.Freeze();
+        return b;
     }
 
     private void RebuildAdapters(Snapshot snap)

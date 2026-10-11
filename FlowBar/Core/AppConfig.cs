@@ -28,9 +28,11 @@ public sealed class AppConfig
 
     public int IntervalMs { get; set; } = 1000;
     public Placement Placement { get; set; } = Placement.Tray;
-    public Layout Layout { get; set; } = Layout.Auto;
+    public Layout Layout { get; set; } = Layout.OneLine;
     public UnitStyle Unit { get; set; } = UnitStyle.Bytes;
     public TextTone TextTone { get; set; } = TextTone.Auto;
+    /// <summary>Key into <see cref="Theme.Schemes"/>; empty = plain light/dark text.</summary>
+    public string ColorScheme { get; set; } = "";
     /// <summary>0 = pick from taskbar height.</summary>
     public double FontSize { get; set; } = 0;
     public string FontFamily { get; set; } = "Segoe UI";

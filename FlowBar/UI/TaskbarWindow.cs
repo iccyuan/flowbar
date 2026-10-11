@@ -28,7 +28,9 @@ public sealed class TaskbarWindow : Window
     private int _thickPx;           // widget thickness, physical px
     private bool _twoLines = true;
     private double _fontSize = 10;
-    private readonly SolidColorBrush _fg = new(Colors.White);
+    private readonly SolidColorBrush _fgUp = new(Colors.White);
+    private readonly SolidColorBrush _fgDown = new(Colors.White);
+    private bool _darkBackdrop = true;
     private static readonly SolidColorBrush HitTestBrush = new(Color.FromArgb(1, 0, 0, 0));
     private readonly Grid _root = new();
     private readonly Border _pill = new();
@@ -73,6 +75,12 @@ public sealed class TaskbarWindow : Window
         MouseLeftButtonUp += OnLeftUp;
         MouseMove += OnMouseMove;
         MouseRightButtonUp += (_, e) => { ShowMenu(); e.Handled = true; };
+        // The tooltip shows ~0.5s after enter; grab its backdrop now, while nothing of ours is there.
+        MouseEnter += (_, _) =>
+        {
+            Native.GetWindowRect(_hwnd, out var r);
+            FrostedGlass.CaptureAround((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2, 400, 160, 260);
+        };
         ToolTipService.SetInitialShowDelay(_root, 500);
         ToolTipService.SetShowDuration(_root, 8000);
 
@@ -219,14 +227,14 @@ public sealed class TaskbarWindow : Window
         _root.ColumnDefinitions.Clear();
 
         double lineH = Math.Ceiling(_fontSize * 1.3);
-        TextBlock Make(string text, double w, TextAlignment align, double opacity = 1)
+        TextBlock Make(string text, double w, TextAlignment align, Brush fg, double opacity = 1)
         {
             var tb = new TextBlock
             {
                 Text = text,
                 FontFamily = typeface.FontFamily,
                 FontSize = _fontSize,
-                Foreground = _fg,
+                Foreground = fg,
                 Opacity = opacity,
                 TextAlignment = align,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -246,14 +254,14 @@ public sealed class TaskbarWindow : Window
             _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(arrowW > 0 ? arrowW + gap : 0) });
             _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(valueW) });
             _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(unitW + gap) });
-            void Row(int r, string arrow, out TextBlock val, out TextBlock unit)
+            void Row(int r, string arrow, Brush fg, out TextBlock val, out TextBlock unit)
             {
-                if (arrowW > 0) { var a = Make(arrow, arrowW, TextAlignment.Left, 0.72); Grid.SetRow(a, r); _root.Children.Add(a); }
-                val = Make("0", valueW, TextAlignment.Right); Grid.SetRow(val, r); Grid.SetColumn(val, 1); _root.Children.Add(val);
-                unit = Make("", unitW, TextAlignment.Left); unit.Margin = new Thickness(gap, 0, 0, 0); Grid.SetRow(unit, r); Grid.SetColumn(unit, 2); _root.Children.Add(unit);
+                if (arrowW > 0) { var a = Make(arrow, arrowW, TextAlignment.Left, fg, 0.72); Grid.SetRow(a, r); _root.Children.Add(a); }
+                val = Make("0", valueW, TextAlignment.Right, fg); Grid.SetRow(val, r); Grid.SetColumn(val, 1); _root.Children.Add(val);
+                unit = Make("", unitW, TextAlignment.Left, fg); unit.Margin = new Thickness(gap, 0, 0, 0); Grid.SetRow(unit, r); Grid.SetColumn(unit, 2); _root.Children.Add(unit);
             }
-            Row(0, "↑", out _txValue, out _txUnit);
-            Row(1, "↓", out _rxValue, out _rxUnit);
+            Row(0, "↑", _fgUp, out _txValue, out _txUnit);
+            Row(1, "↓", _fgDown, out _rxValue, out _rxUnit);
             contentW = (arrowW > 0 ? arrowW + gap : 0) + valueW + gap + unitW;
         }
         else
@@ -269,14 +277,14 @@ public sealed class TaskbarWindow : Window
             Cols();
             _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(mid) });
             Cols();
-            void Group(int c0, string arrow, out TextBlock val, out TextBlock unit)
+            void Group(int c0, string arrow, Brush fg, out TextBlock val, out TextBlock unit)
             {
-                if (arrowW > 0) { var a = Make(arrow, arrowW, TextAlignment.Left, 0.72); Grid.SetColumn(a, c0); _root.Children.Add(a); }
-                val = Make("0", valueW, TextAlignment.Right); Grid.SetColumn(val, c0 + 1); _root.Children.Add(val);
-                unit = Make("", unitW, TextAlignment.Left); unit.Margin = new Thickness(gap, 0, 0, 0); Grid.SetColumn(unit, c0 + 2); _root.Children.Add(unit);
+                if (arrowW > 0) { var a = Make(arrow, arrowW, TextAlignment.Left, fg, 0.72); Grid.SetColumn(a, c0); _root.Children.Add(a); }
+                val = Make("0", valueW, TextAlignment.Right, fg); Grid.SetColumn(val, c0 + 1); _root.Children.Add(val);
+                unit = Make("", unitW, TextAlignment.Left, fg); unit.Margin = new Thickness(gap, 0, 0, 0); Grid.SetColumn(unit, c0 + 2); _root.Children.Add(unit);
             }
-            Group(0, "↑", out _txValue, out _txUnit);
-            Group(4, "↓", out _rxValue, out _rxUnit);
+            Group(0, "↑", _fgUp, out _txValue, out _txUnit);
+            Group(4, "↓", _fgDown, out _rxValue, out _rxUnit);
             contentW = 2 * ((arrowW > 0 ? arrowW + gap : 0) + valueW + gap + unitW) + mid;
         }
 
@@ -317,10 +325,9 @@ public sealed class TaskbarWindow : Window
     /// <summary>Picks a text colour that reads against whatever is behind the widget.</summary>
     public void RefreshTheme()
     {
-        Color c;
-        if (_cfg.TextTone == TextTone.Light) c = Colors.White;
-        else if (_cfg.TextTone == TextTone.Dark) c = Color.FromRgb(0x1B, 0x1B, 0x1B);
-        else if (!_embedded) c = Theme.AppsUseLight() ? Color.FromRgb(0x1B, 0x1B, 0x1B) : Colors.White;
+        if (_cfg.TextTone == TextTone.Light) _darkBackdrop = true;
+        else if (_cfg.TextTone == TextTone.Dark) _darkBackdrop = false;
+        else if (!_embedded) _darkBackdrop = !Theme.AppsUseLight();
         else
         {
             // Sample the taskbar underneath us; hide for one frame so our own text isn't measured.
@@ -329,9 +336,11 @@ public sealed class TaskbarWindow : Window
             if (wasVisible) Native.ShowWindow(_hwnd, Native.SW_HIDE);
             double lum = Theme.SampleLuminance(rect);
             if (wasVisible) Native.ShowWindow(_hwnd, Native.SW_SHOWNA);
-            c = lum > 0.5 ? Color.FromRgb(0x1B, 0x1B, 0x1B) : Colors.White;
+            _darkBackdrop = lum <= 0.5;
         }
-        _fg.Color = c;
+        var (up, down) = Theme.SchemeColors(_cfg.ColorScheme, _darkBackdrop);
+        _fgUp.Color = up;
+        _fgDown.Color = down;
         if (!_embedded) Relayout();
     }
 
@@ -468,6 +477,8 @@ public sealed class TaskbarWindow : Window
     {
         // We never take focus, so the popup wouldn't notice this click; close it explicitly.
         if (_popup is { IsVisible: true }) _popup.Hide();
+        Native.GetCursorPos(out var cur);
+        FrostedGlass.CaptureAround(cur.X, cur.Y, 800, 300, 900);
         var menu = new ContextMenu { Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
 
         MenuItem Item(string header, Action? click = null, bool? checked_ = null)
@@ -522,9 +533,24 @@ public sealed class TaskbarWindow : Window
         menu.Items.Add(font);
 
         var tone = new MenuItem { Header = "文字颜色" };
-        tone.Items.Add(Choice("自动（按任务栏明暗）", _cfg.TextTone, TextTone.Auto, v => _cfg.TextTone = v, "tone"));
-        tone.Items.Add(Choice("浅色文字", _cfg.TextTone, TextTone.Light, v => _cfg.TextTone = v, "tone"));
-        tone.Items.Add(Choice("深色文字", _cfg.TextTone, TextTone.Dark, v => _cfg.TextTone = v, "tone"));
+        bool plain = string.IsNullOrEmpty(_cfg.ColorScheme);
+        MenuItem Tone(string header, TextTone t) => Item(header,
+            () => { _cfg.TextTone = t; _cfg.ColorScheme = ""; OnSettingsChanged("tone"); }, plain && _cfg.TextTone == t);
+        tone.Items.Add(Tone("自动（按任务栏明暗）", TextTone.Auto));
+        tone.Items.Add(Tone("浅色文字", TextTone.Light));
+        tone.Items.Add(Tone("深色文字", TextTone.Dark));
+        tone.Items.Add(new Separator());
+        foreach (var s in Theme.Schemes)
+        {
+            var (up, down) = Theme.SchemeColors(s.Key, _darkBackdrop);
+            var header = new StackPanel { Orientation = Orientation.Horizontal };
+            header.Children.Add(Swatch(up));
+            header.Children.Add(Swatch(down));
+            header.Children.Add(new TextBlock { Text = s.Name, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
+            var key = s.Key;
+            tone.Items.Add(Item("", () => { _cfg.ColorScheme = key; OnSettingsChanged("tone"); }, _cfg.ColorScheme == key));
+            ((MenuItem)tone.Items[^1]).Header = header;
+        }
         menu.Items.Add(tone);
 
         var interval = new MenuItem { Header = "刷新间隔" };
@@ -541,4 +567,11 @@ public sealed class TaskbarWindow : Window
 
         menu.IsOpen = true;
     }
+
+    private static Border Swatch(Color c) => new()
+    {
+        Width = 10, Height = 10, CornerRadius = new CornerRadius(5), Margin = new Thickness(0, 0, 3, 0),
+        Background = new SolidColorBrush(c), VerticalAlignment = VerticalAlignment.Center,
+        BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)), BorderThickness = new Thickness(1),
+    };
 }
