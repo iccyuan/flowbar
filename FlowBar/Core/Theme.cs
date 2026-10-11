@@ -81,6 +81,7 @@ public static class Theme
     public sealed record Scheme(string Key, string Name, string UpOnDark, string DownOnDark, string UpOnLight, string DownOnLight);
 
     // Open Color shades: 7–8 on light taskbars, 3–4 on dark ones. (up, down) per backdrop.
+    // All schemes are two-colour; single-colour presets were dropped on request.
     public static readonly Scheme[] Schemes =
     {
         new("duo-classic", "经典 · 上绿 / 下蓝", "#69DB7C", "#74C0FC", "#2F9E44", "#1971C2"),
@@ -88,13 +89,6 @@ public static class Theme
         new("duo-coral",   "珊瑚 · 上红 / 下青", "#FF8787", "#3BC9DB", "#E03131", "#0C8599"),
         new("duo-orchid",  "兰花 · 上粉 / 下紫", "#FAA2C1", "#B197FC", "#D6336C", "#7048E8"),
         new("duo-lime",    "青柠 · 上黄绿 / 下靛蓝", "#C0EB75", "#91A7FF", "#66A80F", "#3B5BDB"),
-        new("ocean",   "海蓝 · 单色", "#74C0FC", "#74C0FC", "#1864AB", "#1864AB"),
-        new("forest",  "森林 · 单色", "#8CE99A", "#8CE99A", "#2B8A3E", "#2B8A3E"),
-        new("ember",   "余烬 · 单色", "#FFC078", "#FFC078", "#D9480F", "#D9480F"),
-        new("wine",    "酒红 · 单色", "#FAA2C1", "#FAA2C1", "#A61E4D", "#A61E4D"),
-        new("indigo",  "靛紫 · 单色", "#D0BFFF", "#D0BFFF", "#5F3DC4", "#5F3DC4"),
-        new("teal",    "墨青 · 单色", "#63E6BE", "#63E6BE", "#087F5B", "#087F5B"),
-        new("graphite","石墨 · 单色", "#DEE2E6", "#DEE2E6", "#343A40", "#343A40"),
     };
 
     /// <summary>Resolves (upload, download) colours for a scheme key on a dark or light backdrop.</summary>

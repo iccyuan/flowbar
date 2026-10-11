@@ -62,6 +62,8 @@ public partial class App : Application
         // Debug hooks: open a surface right away so it can be screenshotted without synthetic input.
         if (e.Args.Contains("--font")) Dispatcher.BeginInvoke(_window.OpenFontDialog, DispatcherPriority.ApplicationIdle);
         if (e.Args.Contains("--popup")) Dispatcher.BeginInvoke(_window.OpenPopup, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--menu")) Dispatcher.BeginInvoke(_window.DebugOpenMenu, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--tip")) Dispatcher.BeginInvoke(_window.DebugShowTip, DispatcherPriority.ApplicationIdle);
 
         // Theme / display changes come from a hidden broadcast window owned by SystemEvents, which is
         // the only way to hear WM_SETTINGCHANGE once we live as a child of the taskbar.

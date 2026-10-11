@@ -483,13 +483,40 @@ public sealed class TaskbarWindow : Window
         }
     }
 
-    private void ShowMenu()
+    /// <summary>Debug hook (--menu): opens the context menu anchored to the widget instead of the mouse.</summary>
+    public void DebugOpenMenu() => ShowMenu(anchored: true);
+
+    /// <summary>Debug hook (--tip): shows the hover tooltip without moving the mouse.</summary>
+    public void DebugShowTip()
+    {
+        Native.GetWindowRect(_hwnd, out var r);
+        FrostedGlass.CaptureAround((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2, 400, 260, 260);
+        if (_last != null) UpdateToolTip(_last);
+        var tip = new ToolTip
+        {
+            Content = _root.ToolTip as string ?? "FlowBar",
+            PlacementTarget = _root,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+            StaysOpen = true,
+        };
+        _root.ToolTip = tip;
+        tip.IsOpen = true;
+    }
+
+    private void ShowMenu(bool anchored = false)
     {
         // We never take focus, so the popup wouldn't notice this click; close it explicitly.
         if (_popup is { IsVisible: true }) _popup.Hide();
         Native.GetCursorPos(out var cur);
-        FrostedGlass.CaptureAround(cur.X, cur.Y, 800, 300, 900);
-        var menu = new ContextMenu { Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
+        if (anchored)
+        {
+            Native.GetWindowRect(_hwnd, out var wr);
+            cur = new POINT { X = (wr.Left + wr.Right) / 2, Y = (wr.Top + wr.Bottom) / 2 };
+        }
+        FrostedGlass.CaptureAround(cur.X, cur.Y, 800, 900, 900);
+        var menu = anchored
+            ? new ContextMenu { PlacementTarget = _root, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, StaysOpen = true }
+            : new ContextMenu { Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
 
         MenuItem Item(string header, Action? click = null, bool? checked_ = null)
         {
@@ -554,8 +581,6 @@ public sealed class TaskbarWindow : Window
         tone.Items.Add(new Separator());
         foreach (var s in Theme.Schemes)
         {
-            if (s.UpOnDark == s.DownOnDark && tone.Items[^1] is not Separator && Theme.Schemes.First(x => x.UpOnDark == x.DownOnDark) == s)
-                tone.Items.Add(new Separator()); // two-colour schemes above, single-colour below
             var (up, down) = Theme.SchemeColors(s.Key, _darkBackdrop); // dots: first = upload, second = download
             var header = new StackPanel { Orientation = Orientation.Horizontal };
             header.Children.Add(Swatch(up));
