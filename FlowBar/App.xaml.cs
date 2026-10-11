@@ -93,8 +93,8 @@ public partial class App : Application
         Set("MenuHover", light ? "#0F000000" : "#17FFFFFF");
         Set("MenuBorder", light ? "#20000000" : "#30FFFFFF");
         Set("GlassTint", light ? "#B8FFFFFF" : "#C0202020");
-        Set("Accent", light ? "#2F7CF6" : "#5EA8FF");    // download
-        Set("AccentTx", light ? "#F59E0B" : "#FBBF24");  // upload
+        Set("Accent", light ? "#2563EB" : "#60A5FA");    // download (blue → cyan in the chart)
+        Set("AccentTx", light ? "#DB2777" : "#F472B6");  // upload (pink → violet in the chart)
     }
 
     private void Set(string key, string hex) => Resources[key] = new SolidColorBrush(Theme.Hex(hex));

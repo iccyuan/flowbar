@@ -79,10 +79,25 @@ public static class FrostedGlass
     public static bool GetEnabled(DependencyObject d) => (bool)d.GetValue(EnabledProperty);
     public static void SetEnabled(DependencyObject d, bool v) => d.SetValue(EnabledProperty, v);
 
+    private sealed class State { public RECT Rect; public Snapshot? Snap; public EventHandler? OnLayout; }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Border, State> States = new();
+
     private static void OnEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not Border b || !(bool)e.NewValue) return;
-        b.Loaded += (_, _) => Refresh(b);
+        var st = States.GetOrCreateValue(b);
+        st.OnLayout = (_, _) => Refresh(b);
+        // Popups (menus, tooltips) raise Loaded before WPF has moved their HWND into place, so the
+        // first PointToScreen is wrong. Keep following layout while the element is on screen; the
+        // rect cache below makes the repeated calls free.
+        b.Loaded += (_, _) =>
+        {
+            Refresh(b);
+            b.LayoutUpdated -= st.OnLayout;
+            b.LayoutUpdated += st.OnLayout;
+            b.Dispatcher.BeginInvoke(() => Refresh(b), System.Windows.Threading.DispatcherPriority.Background);
+        };
+        b.Unloaded += (_, _) => { b.LayoutUpdated -= st.OnLayout; st.Rect = default; st.Snap = null; };
         b.SizeChanged += (_, _) => Refresh(b);
     }
 
@@ -99,6 +114,10 @@ public static class FrostedGlass
                 Left = (int)Math.Floor(p0.X), Top = (int)Math.Floor(p0.Y),
                 Right = (int)Math.Ceiling(p1.X), Bottom = (int)Math.Ceiling(p1.Y),
             };
+            var st = States.GetOrCreateValue(b);
+            if (rect.Same(st.Rect) && ReferenceEquals(st.Snap, Current)) return;
+            st.Rect = rect;
+            st.Snap = Current;
             var brush = BrushFor(rect);
             if (brush != null) b.Background = brush;
             else b.ClearValue(Border.BackgroundProperty); // falls back to the style's solid colour

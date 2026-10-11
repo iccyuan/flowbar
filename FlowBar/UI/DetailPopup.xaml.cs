@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using FlowBar.Core;
 
 namespace FlowBar.UI;
@@ -94,7 +95,8 @@ public partial class DetailPopup : Window
         int from = Math.Max(0, n - window);
         int count = n - from;
         double w = Chart.ActualWidth, h = Chart.ActualHeight;
-        if (w <= 0 || h <= 0) { w = 270; h = 62; }
+        if (w <= 0 || h <= 0) { w = 270; h = 76; }
+        EnsureGrid(w, h);
 
         double max = 1024; // never flatter than 1 KB/s full scale
         for (int i = from; i < n; i++) max = Math.Max(max, Math.Max(_rx[i], _tx[i]));
@@ -114,8 +116,13 @@ public partial class DetailPopup : Window
         RxFill.Data = Smooth(rx, h, closed: true);
         TxLine.Data = Smooth(tx, h, closed: false);
         TxFill.Data = Smooth(tx, h, closed: true);
-        RxFill.Fill = Fade(((SolidColorBrush)FindResource("Accent")).Color);
-        TxFill.Fill = Fade(((SolidColorBrush)FindResource("AccentTx")).Color);
+
+        // Download: blue → cyan. Upload: pink → violet. Both glow slightly and fade into the baseline.
+        bool light = Theme.AppsUseLight();
+        Color rxA = Theme.Hex(light ? "#2563EB" : "#60A5FA"), rxB = Theme.Hex(light ? "#06B6D4" : "#22D3EE");
+        Color txA = Theme.Hex(light ? "#DB2777" : "#F472B6"), txB = Theme.Hex(light ? "#8B5CF6" : "#A78BFA");
+        Style(RxLine, RxFill, RxDot, rxA, rxB, rx, light);
+        Style(TxLine, TxFill, TxDot, txA, txB, tx, light);
         var (mv, mu) = Formatting.Rate(max, _cfg.Unit);
         ChartMax.Text = $"峰值 {mv} {mu}";
         int span = Math.Max(1, (int)Math.Round(count * sampler.IntervalMs / 1000.0));
@@ -146,12 +153,51 @@ public partial class DetailPopup : Window
         return g;
     }
 
-    private static LinearGradientBrush Fade(Color c)
+    private static void Style(System.Windows.Shapes.Path line, System.Windows.Shapes.Path fill, System.Windows.Shapes.Ellipse dot,
+        Color a, Color b, List<Point> pts, bool light)
     {
-        var b = new LinearGradientBrush(
-            Color.FromArgb(0x5C, c.R, c.G, c.B), Color.FromArgb(0x06, c.R, c.G, c.B), new Point(0, 0), new Point(0, 1));
-        b.Freeze();
-        return b;
+        var stroke = new LinearGradientBrush(a, b, new Point(0, 0), new Point(1, 0));
+        stroke.Freeze();
+        line.Stroke = stroke;
+        line.Effect = new DropShadowEffect { Color = b, BlurRadius = 10, ShadowDepth = 0, Opacity = light ? 0.35 : 0.6 };
+
+        var area = new LinearGradientBrush(
+            Color.FromArgb(light ? (byte)0x55 : (byte)0x66, b.R, b.G, b.B), Color.FromArgb(0x00, b.R, b.G, b.B),
+            new Point(0, 0), new Point(0, 1));
+        area.Freeze();
+        fill.Fill = area;
+
+        if (pts.Count == 0) { dot.Visibility = Visibility.Collapsed; return; }
+        var last = pts[^1];
+        dot.Visibility = Visibility.Visible;
+        dot.Fill = new SolidColorBrush(b);
+        dot.Stroke = new SolidColorBrush(light ? Colors.White : Theme.Hex("#1F1F1F"));
+        Canvas.SetLeft(dot, last.X - dot.Width / 2);
+        Canvas.SetTop(dot, last.Y - dot.Height / 2);
+    }
+
+    private double _gridW, _gridH;
+
+    /// <summary>Faint dotted guide lines at 25/50/75% plus a solid baseline; rebuilt only on resize.</summary>
+    private void EnsureGrid(double w, double h)
+    {
+        if (Math.Abs(w - _gridW) < 0.5 && Math.Abs(h - _gridH) < 0.5) return;
+        _gridW = w; _gridH = h;
+        GridLines.Children.Clear();
+        var brush = (Brush)FindResource("MenuBorder");
+        for (int i = 1; i <= 3; i++)
+        {
+            double y = Math.Round(h - 2 - (h - 2 - 18) * i / 4) + 0.5;
+            GridLines.Children.Add(new System.Windows.Shapes.Line
+            {
+                X1 = 0, X2 = w, Y1 = y, Y2 = y, Stroke = brush, StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection { 2, 3 }, Opacity = 0.8,
+            });
+        }
+        GridLines.Children.Add(new System.Windows.Shapes.Line
+        {
+            X1 = 0, X2 = w, Y1 = h - 1.5, Y2 = h - 1.5, Stroke = brush, StrokeThickness = 1,
+        });
     }
 
     private void RebuildAdapters(Snapshot snap)
