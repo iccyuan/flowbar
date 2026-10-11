@@ -1,0 +1,137 @@
+<Window x:Class="FlowBar.UI.FontDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="clr-namespace:FlowBar.Core"
+        Title="FlowBar 字体"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True" ShowActivated="True"
+        SizeToContent="WidthAndHeight" WindowStartupLocation="Manual"
+        FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="13"
+        TextOptions.TextFormattingMode="Display" TextOptions.TextHintingMode="Animated"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+  <Window.Resources>
+    <Style x:Key="Subtle" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource MenuSubtle}"/>
+      <Setter Property="FontSize" Value="12"/>
+    </Style>
+    <Style x:Key="Body" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
+    </Style>
+    <Style x:Key="Search" TargetType="TextBox">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
+      <Setter Property="CaretBrush" Value="{DynamicResource MenuFg}"/>
+      <Setter Property="Padding" Value="8,5"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TextBox">
+            <Border CornerRadius="6" Background="{DynamicResource MenuHover}" BorderBrush="{DynamicResource MenuBorder}" BorderThickness="1" Padding="{TemplateBinding Padding}">
+              <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="FontRow" TargetType="ListBoxItem">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="Bg" CornerRadius="5" Padding="8,4" Margin="0,1" Background="Transparent">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MenuHover}"/>
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MenuHover}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="Pill" TargetType="RadioButton">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="Bg" CornerRadius="6" Padding="10,4" Margin="0,0,6,0" Background="{DynamicResource MenuHover}">
+              <ContentPresenter VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Accent}"/>
+                <Setter Property="Foreground" Value="White"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
+  <Grid Margin="16" Width="360">
+    <Border x:Name="Glass" CornerRadius="10" Background="{DynamicResource MenuBg}" core:FrostedGlass.Enabled="True">
+      <Border.Effect>
+        <DropShadowEffect BlurRadius="22" ShadowDepth="4" Opacity="0.26"/>
+      </Border.Effect>
+    </Border>
+    <Border CornerRadius="10" BorderThickness="1" Padding="16,14,16,12"
+            Background="{DynamicResource GlassTint}" BorderBrush="{DynamicResource MenuBorder}">
+      <StackPanel>
+        <TextBlock Text="任务栏字体" FontSize="14" FontWeight="SemiBold" Style="{StaticResource Body}"/>
+
+        <Grid Margin="0,12,0,6">
+          <TextBox x:Name="SearchBox" Style="{StaticResource Search}"/>
+          <TextBlock x:Name="SearchHint" Text="搜索字体…" Style="{StaticResource Subtle}" Margin="10,0,0,0"
+                     VerticalAlignment="Center" IsHitTestVisible="False"/>
+        </Grid>
+        <ListBox x:Name="FamilyList" Height="190" Background="Transparent" BorderThickness="0" Padding="0"
+                 ItemContainerStyle="{StaticResource FontRow}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+          <ListBox.Template>
+            <ControlTemplate TargetType="ListBox">
+              <ScrollViewer Style="{StaticResource ThinScrollViewer}" Focusable="False">
+                <ItemsPresenter/>
+              </ScrollViewer>
+            </ControlTemplate>
+          </ListBox.Template>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Name}" FontFamily="{Binding Family}" FontSize="14" TextTrimming="CharacterEllipsis"/>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock Text="字重" Style="{StaticResource Subtle}" Margin="0,10,0,6"/>
+        <StackPanel x:Name="WeightRow" Orientation="Horizontal"/>
+
+        <TextBlock Text="预览" Style="{StaticResource Subtle}" Margin="0,12,0,6"/>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="8"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <Border CornerRadius="6" Background="#F3F3F3" Height="38">
+            <TextBlock x:Name="PreviewLight" Foreground="#1B1B1B" VerticalAlignment="Center" HorizontalAlignment="Center" Text="↑ 12.3 KB/s   ↓ 1.25 MB/s"/>
+          </Border>
+          <Border Grid.Column="2" CornerRadius="6" Background="#202020" Height="38">
+            <TextBlock x:Name="PreviewDark" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center" Text="↑ 12.3 KB/s   ↓ 1.25 MB/s"/>
+          </Border>
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,-10,0">
+          <Button x:Name="CancelButton" Content="取消" Style="{StaticResource FlatButton}"/>
+          <Button x:Name="OkButton" Content="确定" Style="{StaticResource FlatButton}" Foreground="{DynamicResource Accent}" FontWeight="SemiBold"/>
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

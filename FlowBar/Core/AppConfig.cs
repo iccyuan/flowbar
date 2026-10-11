@@ -22,8 +22,9 @@ public enum TextTone { Auto, Light, Dark }
 
 public sealed class AppConfig
 {
-    public static readonly string Dir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlowBar");
+    /// <summary>%AppData%\FlowBar, or FLOWBAR_DIR when set (lets a test instance run on its own config).</summary>
+    public static readonly string Dir = Environment.GetEnvironmentVariable("FLOWBAR_DIR") is { Length: > 0 } d ? d
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlowBar");
     public static readonly string FilePath = Path.Combine(Dir, "config.json");
 
     public int IntervalMs { get; set; } = 1000;
@@ -36,6 +37,8 @@ public sealed class AppConfig
     /// <summary>0 = pick from taskbar height.</summary>
     public double FontSize { get; set; } = 0;
     public string FontFamily { get; set; } = "Segoe UI";
+    /// <summary>Normal | Medium | SemiBold | Bold</summary>
+    public string FontWeight { get; set; } = "Normal";
     /// <summary>null = automatic (physical adapters).</summary>
     public Guid? Adapter { get; set; }
     public bool ShowArrows { get; set; } = true;

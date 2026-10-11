@@ -28,7 +28,8 @@ public partial class App : Application
         base.OnStartup(e);
 
         bool wantExit = e.Args.Any(a => a.Equals("--exit", StringComparison.OrdinalIgnoreCase));
-        _mutex = new Mutex(true, MutexName, out bool first);
+        bool isolated = Environment.GetEnvironmentVariable("FLOWBAR_DIR") is { Length: > 0 };
+        _mutex = new Mutex(true, isolated ? MutexName + ".test" : MutexName, out bool first);
         if (!first)
         {
             if (wantExit)
@@ -57,6 +58,10 @@ public partial class App : Application
 
         _window = new TaskbarWindow(_cfg, _sampler, _traffic);
         _window.Initialize();
+
+        // Debug hooks: open a surface right away so it can be screenshotted without synthetic input.
+        if (e.Args.Contains("--font")) Dispatcher.BeginInvoke(_window.OpenFontDialog, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--popup")) Dispatcher.BeginInvoke(_window.OpenPopup, DispatcherPriority.ApplicationIdle);
 
         // Theme / display changes come from a hidden broadcast window owned by SystemEvents, which is
         // the only way to hear WM_SETTINGCHANGE once we live as a child of the taskbar.

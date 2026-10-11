@@ -58,16 +58,21 @@ public static class Theme
     /// </summary>
     public sealed record Scheme(string Key, string Name, string UpOnDark, string DownOnDark, string UpOnLight, string DownOnLight);
 
+    // Open Color shades: 7–8 on light taskbars, 3–4 on dark ones. (up, down) per backdrop.
     public static readonly Scheme[] Schemes =
     {
-        new("duo-blue-amber", "双色 · 蓝 / 琥珀", "#FBBF24", "#7CB8FF", "#C2410C", "#1D4ED8"),
-        new("duo-teal-green", "双色 · 青 / 绿",  "#4ADE80", "#22D3EE", "#15803D", "#0E7490"),
-        new("duo-pink-violet", "双色 · 粉 / 紫", "#F9A8D4", "#C4B5FD", "#BE185D", "#6D28D9"),
-        new("sky",    "天蓝", "#7DD3FC", "#7DD3FC", "#0369A1", "#0369A1"),
-        new("mint",   "薄荷", "#6EE7B7", "#6EE7B7", "#047857", "#047857"),
-        new("amber",  "琥珀", "#FCD34D", "#FCD34D", "#B45309", "#B45309"),
-        new("rose",   "玫红", "#FDA4AF", "#FDA4AF", "#BE123C", "#BE123C"),
-        new("violet", "紫罗兰", "#C4B5FD", "#C4B5FD", "#6D28D9", "#6D28D9"),
+        new("duo-classic", "经典 · 绿上 / 蓝下", "#69DB7C", "#74C0FC", "#2F9E44", "#1971C2"),
+        new("duo-sunset",  "日落 · 橙上 / 蓝下", "#FFA94D", "#4DABF7", "#E8590C", "#1C7ED6"),
+        new("duo-coral",   "珊瑚 · 红上 / 青下", "#FF8787", "#3BC9DB", "#E03131", "#0C8599"),
+        new("duo-orchid",  "兰花 · 粉上 / 紫下", "#FAA2C1", "#B197FC", "#D6336C", "#7048E8"),
+        new("duo-lime",    "青柠 · 黄绿上 / 靛下", "#C0EB75", "#91A7FF", "#66A80F", "#3B5BDB"),
+        new("ocean",   "海蓝", "#74C0FC", "#74C0FC", "#1864AB", "#1864AB"),
+        new("forest",  "森林", "#8CE99A", "#8CE99A", "#2B8A3E", "#2B8A3E"),
+        new("ember",   "余烬", "#FFC078", "#FFC078", "#D9480F", "#D9480F"),
+        new("wine",    "酒红", "#FAA2C1", "#FAA2C1", "#A61E4D", "#A61E4D"),
+        new("indigo",  "靛紫", "#D0BFFF", "#D0BFFF", "#5F3DC4", "#5F3DC4"),
+        new("teal",    "墨青", "#63E6BE", "#63E6BE", "#087F5B", "#087F5B"),
+        new("graphite","石墨", "#DEE2E6", "#DEE2E6", "#343A40", "#343A40"),
     };
 
     /// <summary>Resolves (upload, download) colours for a scheme key on a dark or light backdrop.</summary>

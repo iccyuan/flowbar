@@ -212,7 +212,8 @@ public sealed class TaskbarWindow : Window
             : _twoLines ? Math.Clamp(Math.Floor((thickDip - 3) / 2 / 1.3), 9, 13)
             : Math.Clamp(Math.Floor(thickDip * 0.46), 9, 14);
 
-        var typeface = new Typeface(new FontFamily(_cfg.FontFamily + ", Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var weight = FontDialog.WeightOf(_cfg.FontWeight);
+        var typeface = new Typeface(new FontFamily(_cfg.FontFamily + ", Segoe UI"), FontStyles.Normal, weight, FontStretches.Normal);
         double ppd = s;
         double Measure(string t) => new FormattedText(t, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
             typeface, _fontSize, Brushes.Black, ppd).WidthIncludingTrailingWhitespace;
@@ -233,6 +234,7 @@ public sealed class TaskbarWindow : Window
             {
                 Text = text,
                 FontFamily = typeface.FontFamily,
+                FontWeight = weight,
                 FontSize = _fontSize,
                 Foreground = fg,
                 Opacity = opacity,
@@ -243,6 +245,7 @@ public sealed class TaskbarWindow : Window
                 Width = w > 0 ? w : double.NaN,
             };
             RenderOptions.SetClearTypeHint(tb, ClearTypeHint.Auto);
+            System.Windows.Documents.Typography.SetNumeralAlignment(tb, FontNumeralAlignment.Tabular); // digits don't jitter as values change
             return tb;
         }
 
@@ -438,6 +441,12 @@ public sealed class TaskbarWindow : Window
         TogglePopup();
     }
 
+    public void OpenPopup()
+    {
+        if (_popup is { IsVisible: true }) return;
+        TogglePopup();
+    }
+
     private void TogglePopup()
     {
         if (_popup is { IsVisible: true }) { _popup.Hide(); return; }
@@ -526,10 +535,12 @@ public sealed class TaskbarWindow : Window
         unit.Items.Add(Choice("比特  98.4 Mb/s", _cfg.Unit, UnitStyle.Bits, v => _cfg.Unit = v, "unit"));
         menu.Items.Add(unit);
 
-        var font = new MenuItem { Header = "字号" };
+        var font = new MenuItem { Header = "字体与字号" };
         font.Items.Add(Choice("自动", _cfg.FontSize, 0.0, v => _cfg.FontSize = v, "font"));
         foreach (var fs in new[] { 9.0, 10, 11, 12, 13, 14 })
             font.Items.Add(Choice(fs.ToString(CultureInfo.InvariantCulture), _cfg.FontSize, fs, v => _cfg.FontSize = v, "font"));
+        font.Items.Add(new Separator());
+        font.Items.Add(Item("字体…", OpenFontDialog));
         menu.Items.Add(font);
 
         var tone = new MenuItem { Header = "文字颜色" };
@@ -566,6 +577,19 @@ public sealed class TaskbarWindow : Window
         menu.Items.Add(Item("退出 FlowBar", () => Application.Current.Shutdown()));
 
         menu.IsOpen = true;
+    }
+
+    private FontDialog? _fontDialog;
+
+    public void OpenFontDialog()
+    {
+        if (_fontDialog is { IsVisible: true }) { _fontDialog.Activate(); return; }
+        if (_popup is { IsVisible: true }) _popup.Hide();
+        _fontDialog = new FontDialog(_cfg, () => OnSettingsChanged("font"));
+        _fontDialog.Closed += (_, _) => _fontDialog = null;
+        Native.GetWindowRect(_hwnd, out var anchor);
+        bool openBelow = _embedded ? _host.TaskbarAtStartEdge : anchor.Top < 200;
+        _fontDialog.ShowAt(anchor, openBelow);
     }
 
     private static Border Swatch(Color c) => new()
