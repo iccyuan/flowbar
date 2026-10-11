@@ -1,0 +1,60 @@
+# Release: push a version tag and this builds + publishes a GitHub Release.
+#   git tag v0.1.1 && git push origin v0.1.1
+# The version baked into FlowBar.exe comes from the tag.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Version from tag
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      # Small build: needs the .NET 10 Desktop Runtime on the target machine.
+      - name: Publish (framework-dependent)
+        run: >
+          dotnet publish FlowBar/FlowBar.csproj -c Release -r win-x64 --self-contained false
+          -p:PublishSingleFile=true -p:PublishReadyToRun=false -p:Version=${{ env.VERSION }} -o out/fd
+
+      # Runs anywhere, no runtime install; bigger because it carries .NET + WPF.
+      - name: Publish (self-contained)
+        run: >
+          dotnet publish FlowBar/FlowBar.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -p:PublishReadyToRun=false -p:Version=${{ env.VERSION }} -o out/sc
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item out/fd/FlowBar.exe "dist/FlowBar-$env:VERSION-win-x64.exe"
+          Compress-Archive -Path out/sc/FlowBar.exe -DestinationPath "dist/FlowBar-$env:VERSION-win-x64-standalone.zip"
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: FlowBar ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            Windows 任务栏网速监控。运行后组件出现在任务栏托盘图标左侧；左键看详情，右键调整外观。
+
+            **下载哪个？**
+            - `FlowBar-${{ env.VERSION }}-win-x64.exe`：体积小，需要先安装 [.NET 10 桌面运行时](https://dotnet.microsoft.com/download/dotnet/10.0)（Windows Desktop Runtime x64）。
+            - `FlowBar-${{ env.VERSION }}-win-x64-standalone.zip`：解压即用，无需安装运行时，体积较大。
+
+            需要 Windows 10 及以上；Windows 11 原生任务栏为叠放模式（未在真机验证），Win10 式任务栏（含 StartAllBack）会缩短任务按钮区腾位。
+          files: dist/*
