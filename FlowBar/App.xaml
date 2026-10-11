@@ -42,8 +42,7 @@
                   <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.22"/>
                 </Border.Effect>
               </Border>
-              <Border Background="{DynamicResource GlassTint}" BorderBrush="{DynamicResource MenuBorder}"
-                      BorderThickness="1" CornerRadius="8" Padding="4,5">
+              <Border Background="{DynamicResource GlassTint}" CornerRadius="8" Padding="4,5">
                 <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/>
               </Border>
             </Grid>
@@ -95,8 +94,7 @@
                       <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.22"/>
                     </Border.Effect>
                   </Border>
-                  <Border Background="{DynamicResource GlassTint}" BorderBrush="{DynamicResource MenuBorder}"
-                          BorderThickness="1" CornerRadius="8" Padding="4,5">
+                  <Border Background="{DynamicResource GlassTint}" CornerRadius="8" Padding="4,5">
                     <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/>
                   </Border>
                 </Grid>
@@ -141,8 +139,7 @@
                   <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.2"/>
                 </Border.Effect>
               </Border>
-              <Border Background="{DynamicResource GlassTint}" BorderBrush="{DynamicResource MenuBorder}"
-                      BorderThickness="1" CornerRadius="6" Padding="10,6">
+              <Border Background="{DynamicResource GlassTint}" CornerRadius="6" Padding="10,6">
                 <ContentPresenter TextBlock.LineHeight="19" TextBlock.LineStackingStrategy="BlockLineHeight"/>
               </Border>
             </Grid>

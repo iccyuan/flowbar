@@ -36,11 +36,21 @@ public sealed class TaskbarWindow : Window
     private readonly Border _pill = new();
     private TextBlock? _rxValue, _rxUnit, _txValue, _txUnit;
     private DetailPopup? _popup;
+    private ContextMenu? _menu;
     private Snapshot? _last;
     private bool _dragging;
     private POINT _dragStart;
     private RECT _dragRect;
     private bool _hiddenForFullscreen;
+    private readonly Action<Snapshot> _onSampled;
+
+    /// <summary>
+    /// Raised (once) when our HWND has been destroyed under us. That happens when Explorer restarts:
+    /// Shell_TrayWnd goes down and takes every child window with it, ours included. The process
+    /// keeps running, so the owner must build a fresh window.
+    /// </summary>
+    public event Action? Died;
+    private bool _dead;
 
     public TaskbarWindow(AppConfig cfg, NetSampler sampler, TrafficLog traffic)
     {
@@ -84,7 +94,8 @@ public sealed class TaskbarWindow : Window
         ToolTipService.SetInitialShowDelay(_root, 500);
         ToolTipService.SetShowDuration(_root, 8000);
 
-        _sampler.Sampled += snap => Dispatcher.BeginInvoke(() => OnSample(snap));
+        _onSampled = snap => Dispatcher.BeginInvoke(() => OnSample(snap));
+        _sampler.Sampled += _onSampled;
         _tick.Tick += (_, _) => Tick();
     }
 
@@ -99,11 +110,20 @@ public sealed class TaskbarWindow : Window
         _tick.Start();
     }
 
+    /// <summary>True while the native window still exists.</summary>
+    public bool IsAlive => _hwnd != IntPtr.Zero && Native.IsWindow(_hwnd);
+
     public void Shutdown()
     {
         _tick.Stop();
+        _sampler.Sampled -= _onSampled;
+        // An open context menu keeps the dispatcher alive after the window is gone, so the process
+        // would linger (and release the single-instance mutex) without ever exiting.
+        if (_menu != null) { _menu.IsOpen = false; _menu = null; }
         _popup?.Close();
+        _fontDialog?.Close();
         _host.Detach();
+        if (IsAlive) Close();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -374,6 +394,13 @@ public sealed class TaskbarWindow : Window
 
     private void Tick()
     {
+        if (!_dead && !IsAlive)
+        {
+            _dead = true;
+            _tick.Stop();
+            Died?.Invoke();
+            return;
+        }
         if (_embedded)
         {
             if (_host.Maintain(_lengthPx)) Relayout();
@@ -517,6 +544,8 @@ public sealed class TaskbarWindow : Window
         var menu = anchored
             ? new ContextMenu { PlacementTarget = _root, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, StaysOpen = true }
             : new ContextMenu { Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
+        _menu = menu;
+        menu.Closed += (_, _) => { if (_menu == menu) _menu = null; };
 
         MenuItem Item(string header, Action? click = null, bool? checked_ = null)
         {
@@ -604,6 +633,14 @@ public sealed class TaskbarWindow : Window
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("退出 FlowBar", () => Application.Current.Shutdown()));
 
+        // Only the foreground window can hold mouse capture, and we never activate (we live inside the
+        // taskbar). Without capture the menu never hears a click outside itself: the click goes to
+        // whatever is underneath and the menu just stays open. Bring the menu's own popup window to
+        // the foreground once it exists; Windows allows that because the user just clicked on us.
+        menu.Opened += (_, _) =>
+        {
+            if (PresentationSource.FromVisual(menu) is HwndSource src) Native.SetForegroundWindow(src.Handle);
+        };
         menu.IsOpen = true;
     }
 

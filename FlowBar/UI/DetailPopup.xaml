@@ -29,8 +29,7 @@
         <DropShadowEffect BlurRadius="22" ShadowDepth="4" Opacity="0.26"/>
       </Border.Effect>
     </Border>
-  <Border x:Name="Card" CornerRadius="10" BorderThickness="1" Padding="16,14,16,10"
-          Background="{DynamicResource GlassTint}" BorderBrush="{DynamicResource MenuBorder}">
+  <Border x:Name="Card" CornerRadius="10" Padding="16,14,16,10" Background="{DynamicResource GlassTint}">
     <StackPanel>
       <!-- header -->
       <Grid>

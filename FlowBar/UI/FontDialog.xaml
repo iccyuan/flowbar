@@ -82,8 +82,7 @@
         <DropShadowEffect BlurRadius="22" ShadowDepth="4" Opacity="0.26"/>
       </Border.Effect>
     </Border>
-    <Border CornerRadius="10" BorderThickness="1" Padding="16,14,16,12"
-            Background="{DynamicResource GlassTint}" BorderBrush="{DynamicResource MenuBorder}">
+    <Border CornerRadius="10" Padding="16,14,16,12" Background="{DynamicResource GlassTint}">
       <StackPanel>
         <TextBlock Text="任务栏字体" FontSize="14" FontWeight="SemiBold" Style="{StaticResource Body}"/>
 

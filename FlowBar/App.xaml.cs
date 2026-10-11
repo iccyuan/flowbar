@@ -11,6 +11,7 @@ public partial class App : Application
 {
     private const string MutexName = "FlowBar.SingleInstance";
     private const string ExitEventName = "FlowBar.ExitRequest";
+    private const string ShowEventName = "FlowBar.ShowRequest";
 
     private Mutex? _mutex;
     private AppConfig _cfg = new();
@@ -18,6 +19,7 @@ public partial class App : Application
     private TrafficLog? _traffic;
     private TaskbarWindow? _window;
     private EventWaitHandle? _exitEvent;
+    private EventWaitHandle? _showEvent;
     private DispatcherTimer? _themeDebounce;
 
     public static new App Current => (App)Application.Current;
@@ -32,10 +34,13 @@ public partial class App : Application
         _mutex = new Mutex(true, isolated ? MutexName + ".test" : MutexName, out bool first);
         if (!first)
         {
-            if (wantExit)
-            {
-                try { EventWaitHandle.OpenExisting(ExitEventName).Set(); } catch { }
-            }
+            // Another FlowBar owns the taskbar. Hand the request over instead of vanishing silently:
+            // `--exit` asks it to quit, a plain double-click asks it to show its detail popup.
+            string name = wantExit ? ExitEventName : ShowEventName;
+            bool delivered = false;
+            try { EventWaitHandle.OpenExisting(name).Set(); delivered = true; } catch { }
+            if (!delivered && !wantExit)
+                MessageBox.Show("FlowBar 已经在运行。", "FlowBar", MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
         }
@@ -56,14 +61,14 @@ public partial class App : Application
         _sampler.Sampled += snap => _traffic.Add(snap.DeltaRx, snap.DeltaTx);
         _sampler.Start(_cfg.IntervalMs);
 
-        _window = new TaskbarWindow(_cfg, _sampler, _traffic);
-        _window.Initialize();
+        CreateWindow();
+        var w = _window!;
 
         // Debug hooks: open a surface right away so it can be screenshotted without synthetic input.
-        if (e.Args.Contains("--font")) Dispatcher.BeginInvoke(_window.OpenFontDialog, DispatcherPriority.ApplicationIdle);
-        if (e.Args.Contains("--popup")) Dispatcher.BeginInvoke(_window.OpenPopup, DispatcherPriority.ApplicationIdle);
-        if (e.Args.Contains("--menu")) Dispatcher.BeginInvoke(_window.DebugOpenMenu, DispatcherPriority.ApplicationIdle);
-        if (e.Args.Contains("--tip")) Dispatcher.BeginInvoke(_window.DebugShowTip, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--font")) Dispatcher.BeginInvoke(w.OpenFontDialog, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--popup")) Dispatcher.BeginInvoke(w.OpenPopup, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--menu")) Dispatcher.BeginInvoke(w.DebugOpenMenu, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--tip")) Dispatcher.BeginInvoke(w.DebugShowTip, DispatcherPriority.ApplicationIdle);
 
         // Theme / display changes come from a hidden broadcast window owned by SystemEvents, which is
         // the only way to hear WM_SETTINGCHANGE once we live as a child of the taskbar.
@@ -75,6 +80,9 @@ public partial class App : Application
         // `FlowBar.exe --exit` from a second process asks us to quit cleanly (restores the taskbar).
         _exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ExitEventName);
         ThreadPool.RegisterWaitForSingleObject(_exitEvent, (_, _) => Dispatcher.BeginInvoke(Shutdown), null, -1, true);
+        // A second launch (double-clicking the exe again) asks us to open the detail popup.
+        _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+        ThreadPool.RegisterWaitForSingleObject(_showEvent, (_, _) => Dispatcher.BeginInvoke(() => _window?.OpenPopup()), null, -1, false);
 
         // WPF start-up leaves a lot of touched-but-cold pages behind; hand them back once we're idle.
         var trim = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
@@ -82,6 +90,34 @@ public partial class App : Application
         trim.Start();
 
         Log.Write($"started v{typeof(App).Assembly.GetName().Version}");
+    }
+
+    private void CreateWindow()
+    {
+        _window = new TaskbarWindow(_cfg, _sampler!, _traffic!);
+        _window.Died += OnWindowDied;
+        _window.Initialize();
+    }
+
+    /// <summary>
+    /// Explorer restarted and destroyed the taskbar together with our embedded child window. The
+    /// old TaskbarWindow is unusable now; tear it down and attach a new one to the new taskbar.
+    /// </summary>
+    private void OnWindowDied()
+    {
+        Log.Write("widget window destroyed (Explorer restart?), recreating");
+        var old = _window;
+        _window = null;
+        if (old != null)
+        {
+            old.Died -= OnWindowDied;
+            try { old.Shutdown(); } catch (Exception ex) { Log.Write("old window shutdown: " + ex.Message); }
+        }
+        // Give the new Explorer a moment to build Shell_TrayWnd; TaskbarHost falls back to floating
+        // and keeps re-probing every tick if it is still not there.
+        var retry = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+        retry.Tick += (_, _) => { retry.Stop(); CreateWindow(); };
+        retry.Start();
     }
 
     public static void TrimWorkingSet()
@@ -118,10 +154,22 @@ public partial class App : Application
             _window?.Shutdown();
             _sampler?.Dispose();
             _traffic?.Save();
-            _cfg.Save();
+            // No config save here on purpose: every setting change already saves itself, and a
+            // whole-file save at exit let a stale instance (one that was started earlier and quit
+            // later) overwrite choices made in another one.
         }
         catch (Exception ex) { Log.Write("exit: " + ex.Message); }
         _mutex?.Dispose();
         base.OnExit(e);
+        // WPF sometimes never finishes shutting down when a popup (context menu, detail popup) was
+        // open at the time: everything above has run and the mutex is released, but the dispatcher
+        // keeps pumping and the process lingers. Nothing is left to clean up, so don't let it.
+        var watchdog = new Thread(() =>
+        {
+            Thread.Sleep(2000);
+            Log.Write("dispatcher did not stop after OnExit, forcing exit");
+            Environment.Exit(e.ApplicationExitCode);
+        }) { IsBackground = true, Name = "exit-watchdog" };
+        watchdog.Start();
     }
 }
