@@ -54,14 +54,16 @@ public static class FrostedGlass
         return Capture(r);
     }
 
+    public static bool Covers(Snapshot? s, RECT target) =>
+        s != null && target.Left >= s.Area.Left && target.Top >= s.Area.Top && target.Right <= s.Area.Right && target.Bottom <= s.Area.Bottom;
+
     /// <summary>Brush showing the blurred backdrop under <paramref name="target"/>, or null if uncovered.</summary>
-    public static ImageBrush? BrushFor(RECT target)
+    public static ImageBrush? BrushFor(RECT target) => BrushFor(Current, target);
+
+    public static ImageBrush? BrushFor(Snapshot? s, RECT target)
     {
-        var s = Current;
-        if (s == null) return null;
-        if (target.Left < s.Area.Left || target.Top < s.Area.Top || target.Right > s.Area.Right || target.Bottom > s.Area.Bottom)
-            return null;
-        return new ImageBrush(s.Image)
+        if (!Covers(s, target)) return null;
+        return new ImageBrush(s!.Image)
         {
             ViewboxUnits = BrushMappingMode.Absolute,
             Viewbox = new Rect((target.Left - s.Area.Left) * s.Scale, (target.Top - s.Area.Top) * s.Scale,
@@ -115,12 +117,19 @@ public static class FrostedGlass
                 Right = (int)Math.Ceiling(p1.X), Bottom = (int)Math.Ceiling(p1.Y),
             };
             var st = States.GetOrCreateValue(b);
-            if (rect.Same(st.Rect) && ReferenceEquals(st.Snap, Current)) return;
+            // Prefer the newest snapshot, but never drop a snapshot that still covers us for one that
+            // doesn't (another surface, e.g. the tooltip, may have captured a small region meanwhile).
+            var snap = Covers(Current, rect) ? Current : Covers(st.Snap, rect) ? st.Snap : null;
+            if (rect.Same(st.Rect) && ReferenceEquals(st.Snap, snap) && (snap != null || b.Background != null)) return;
             st.Rect = rect;
-            st.Snap = Current;
-            var brush = BrushFor(rect);
+            st.Snap = snap;
+            var brush = BrushFor(snap, rect);
             if (brush != null) b.Background = brush;
-            else b.ClearValue(Border.BackgroundProperty); // falls back to the style's solid colour
+            else
+            {
+                b.SetResourceReference(Border.BackgroundProperty, "MenuBg"); // opaque fallback, never see-through
+                if (Current != null) Log.Write($"glass fallback: element {rect} not covered by snapshot {Current.Area}");
+            }
         }
         catch (Exception ex) { Log.Write("glass refresh failed: " + ex.Message); }
     }

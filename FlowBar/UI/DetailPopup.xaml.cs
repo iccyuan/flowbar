@@ -28,46 +28,77 @@ public partial class DetailPopup : Window
         KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Escape) Hide(); };
     }
 
+    private RECT _anchor;
+    private bool _openBelow, _vertical, _placed;
+
     /// <summary>Positions the card next to <paramref name="anchor"/> (screen px) and shows it.</summary>
     public void ShowAt(RECT anchor, bool openBelow, bool verticalBar)
     {
         // No DWM corner/border attributes here: on a layered window Windows 11 would paint its own
         // rounded frame around the whole window rect, i.e. a second outline outside the card.
-        if (_hwnd == IntPtr.Zero) _hwnd = new WindowInteropHelper(this).EnsureHandle();
+        if (_hwnd == IntPtr.Zero)
+        {
+            _hwnd = new WindowInteropHelper(this).EnsureHandle();
+            SizeChanged += (_, _) => Reposition();
+        }
+        _anchor = anchor; _openBelow = openBelow; _vertical = verticalBar;
 
         // A finished fade-in animation still holds Opacity at 1; release it before hiding again.
         BeginAnimation(OpacityProperty, null);
         Opacity = 0;
+        _placed = false;
         Show();
         UpdateLayout();
 
-        double s = Native.DpiOf(_hwnd) / 96.0;
-        int w = (int)Math.Round(ActualWidth * s), h = (int)Math.Round(ActualHeight * s);
-        int shadow = (int)Math.Round(16 * s); // Card.Margin
-
-        var mi = Native.MonitorInfoFor(ref anchor);
-        int x, y;
-        if (verticalBar)
+        var (x, y, w, h, shadow) = Layout();
+        // Snapshot generously around the card: it grows when adapter rows arrive, and the tooltip may
+        // capture its own small region later; the element keeps whichever snapshot still covers it.
+        var mi = Native.MonitorInfoFor(ref _anchor);
+        FrostedGlass.Capture(new RECT
         {
-            // taskbar on the left/right edge: open beside it, vertically centred on the widget
-            bool right = anchor.Left - mi.rcMonitor.Left < mi.rcMonitor.Right - anchor.Right;
-            x = right ? anchor.Right - shadow + 2 : anchor.Left - w + shadow - 2;
-            y = (anchor.Top + anchor.Bottom) / 2 - h / 2;
-        }
-        else
-        {
-            x = (anchor.Left + anchor.Right) / 2 - w / 2;
-            y = openBelow ? anchor.Bottom - shadow + 2 : anchor.Top - h + shadow - 2;
-        }
-        x = Math.Clamp(x, mi.rcWork.Left - shadow + 4, Math.Max(mi.rcWork.Left, mi.rcWork.Right - w + shadow - 4));
-        y = Math.Clamp(y, mi.rcWork.Top - shadow + 4, Math.Max(mi.rcWork.Top, mi.rcWork.Bottom - h + shadow - 4));
-
-        // Snapshot what will be behind the card (we're fully transparent right now), then place it.
-        FrostedGlass.Capture(new RECT { Left = x + shadow - 4, Top = y + shadow - 4, Right = x + w - shadow + 4, Bottom = y + h - shadow + 4 });
+            Left = Math.Max(mi.rcMonitor.Left, x + shadow - 200),
+            Top = Math.Max(mi.rcMonitor.Top, y + shadow - 400),
+            Right = Math.Min(mi.rcMonitor.Right, x + w - shadow + 200),
+            Bottom = Math.Min(mi.rcMonitor.Bottom, y + h - shadow + 400),
+        });
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, w, h, Native.SWP_SHOWWINDOW);
+        _placed = true;
         FrostedGlass.Refresh(Glass);
         Activate();
         BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120)));
+    }
+
+    /// <summary>Window rect (screen px) for the current content size, hugging the anchor and the work area.</summary>
+    private (int x, int y, int w, int h, int shadow) Layout()
+    {
+        double s = Native.DpiOf(_hwnd) / 96.0;
+        int w = (int)Math.Round(ActualWidth * s), h = (int)Math.Round(ActualHeight * s);
+        int shadow = (int)Math.Round(16 * s); // outer Grid.Margin
+        var mi = Native.MonitorInfoFor(ref _anchor);
+        int x, y;
+        if (_vertical)
+        {
+            bool right = _anchor.Left - mi.rcMonitor.Left < mi.rcMonitor.Right - _anchor.Right;
+            x = right ? _anchor.Right - shadow + 2 : _anchor.Left - w + shadow - 2;
+            y = (_anchor.Top + _anchor.Bottom) / 2 - h / 2;
+        }
+        else
+        {
+            x = (_anchor.Left + _anchor.Right) / 2 - w / 2;
+            y = _openBelow ? _anchor.Bottom - shadow + 2 : _anchor.Top - h + shadow - 2;
+        }
+        x = Math.Clamp(x, mi.rcWork.Left - shadow + 4, Math.Max(mi.rcWork.Left, mi.rcWork.Right - w + shadow - 4));
+        y = Math.Clamp(y, mi.rcWork.Top - shadow + 4, Math.Max(mi.rcWork.Top, mi.rcWork.Bottom - h + shadow - 4));
+        return (x, y, w, h, shadow);
+    }
+
+    /// <summary>Content grew or shrank after showing: keep the card anchored and re-slice the glass.</summary>
+    private void Reposition()
+    {
+        if (!_placed || !IsVisible) return;
+        var (x, y, w, h, _) = Layout();
+        Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, w, h, Native.SWP_NOACTIVATE);
+        FrostedGlass.Refresh(Glass);
     }
 
     public void Update(Snapshot snap, NetSampler sampler, TrafficLog traffic)
@@ -117,10 +148,10 @@ public partial class DetailPopup : Window
         TxLine.Data = Smooth(tx, h, closed: false);
         TxFill.Data = Smooth(tx, h, closed: true);
 
-        // Download: blue → cyan. Upload: pink → violet. Both glow slightly and fade into the baseline.
+        // Colours follow the taskbar text scheme (see Theme.ChartColors); lines glow and fade to the baseline.
         bool light = Theme.AppsUseLight();
-        Color rxA = Theme.Hex(light ? "#2563EB" : "#60A5FA"), rxB = Theme.Hex(light ? "#06B6D4" : "#22D3EE");
-        Color txA = Theme.Hex(light ? "#DB2777" : "#F472B6"), txB = Theme.Hex(light ? "#8B5CF6" : "#A78BFA");
+        Color rxA = ((SolidColorBrush)FindResource("ChartRx")).Color, rxB = ((SolidColorBrush)FindResource("ChartRxEnd")).Color;
+        Color txA = ((SolidColorBrush)FindResource("ChartTx")).Color, txB = ((SolidColorBrush)FindResource("ChartTxEnd")).Color;
         Style(RxLine, RxFill, RxDot, rxA, rxB, rx, light);
         Style(TxLine, TxFill, TxDot, txA, txB, tx, light);
         var (mv, mu) = Formatting.Rate(max, _cfg.Unit);

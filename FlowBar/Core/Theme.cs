@@ -52,6 +52,28 @@ public static class Theme
 
     public static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex)!;
 
+    /// <summary>Linear blend of <paramref name="c"/> towards <paramref name="to"/> by <paramref name="t"/> (0..1).</summary>
+    public static Color Blend(Color c, Color to, double t) => Color.FromRgb(
+        (byte)Math.Round(c.R + (to.R - c.R) * t), (byte)Math.Round(c.G + (to.G - c.G) * t), (byte)Math.Round(c.B + (to.B - c.B) * t));
+
+    /// <summary>
+    /// Chart colours for the popup: (download start, download end, upload start, upload end).
+    /// Follows the taskbar text scheme when one is chosen; a single-colour scheme lightens the upload
+    /// line one step so the two series stay distinguishable.
+    /// </summary>
+    public static (Color rx, Color rxEnd, Color tx, Color txEnd) ChartColors(string? scheme, bool lightUi)
+    {
+        if (!Schemes.Any(s => s.Key == scheme))
+        {
+            return lightUi
+                ? (Hex("#2563EB"), Hex("#06B6D4"), Hex("#DB2777"), Hex("#8B5CF6"))
+                : (Hex("#60A5FA"), Hex("#22D3EE"), Hex("#F472B6"), Hex("#A78BFA"));
+        }
+        var (up, down) = SchemeColors(scheme, darkBackdrop: !lightUi);
+        if (up == down) up = Blend(up, lightUi ? Colors.White : Colors.Black, lightUi ? 0.45 : 0.35);
+        return (down, Blend(down, Colors.White, 0.35), up, Blend(up, Colors.White, 0.35));
+    }
+
     /// <summary>
     /// Taskbar text colour presets. Each has a bright variant for dark taskbars and a deep variant
     /// for light ones; upload and download rows may differ.
@@ -61,18 +83,18 @@ public static class Theme
     // Open Color shades: 7–8 on light taskbars, 3–4 on dark ones. (up, down) per backdrop.
     public static readonly Scheme[] Schemes =
     {
-        new("duo-classic", "经典 · 绿上 / 蓝下", "#69DB7C", "#74C0FC", "#2F9E44", "#1971C2"),
-        new("duo-sunset",  "日落 · 橙上 / 蓝下", "#FFA94D", "#4DABF7", "#E8590C", "#1C7ED6"),
-        new("duo-coral",   "珊瑚 · 红上 / 青下", "#FF8787", "#3BC9DB", "#E03131", "#0C8599"),
-        new("duo-orchid",  "兰花 · 粉上 / 紫下", "#FAA2C1", "#B197FC", "#D6336C", "#7048E8"),
-        new("duo-lime",    "青柠 · 黄绿上 / 靛下", "#C0EB75", "#91A7FF", "#66A80F", "#3B5BDB"),
-        new("ocean",   "海蓝", "#74C0FC", "#74C0FC", "#1864AB", "#1864AB"),
-        new("forest",  "森林", "#8CE99A", "#8CE99A", "#2B8A3E", "#2B8A3E"),
-        new("ember",   "余烬", "#FFC078", "#FFC078", "#D9480F", "#D9480F"),
-        new("wine",    "酒红", "#FAA2C1", "#FAA2C1", "#A61E4D", "#A61E4D"),
-        new("indigo",  "靛紫", "#D0BFFF", "#D0BFFF", "#5F3DC4", "#5F3DC4"),
-        new("teal",    "墨青", "#63E6BE", "#63E6BE", "#087F5B", "#087F5B"),
-        new("graphite","石墨", "#DEE2E6", "#DEE2E6", "#343A40", "#343A40"),
+        new("duo-classic", "经典 · 上绿 / 下蓝", "#69DB7C", "#74C0FC", "#2F9E44", "#1971C2"),
+        new("duo-sunset",  "日落 · 上橙 / 下蓝", "#FFA94D", "#4DABF7", "#E8590C", "#1C7ED6"),
+        new("duo-coral",   "珊瑚 · 上红 / 下青", "#FF8787", "#3BC9DB", "#E03131", "#0C8599"),
+        new("duo-orchid",  "兰花 · 上粉 / 下紫", "#FAA2C1", "#B197FC", "#D6336C", "#7048E8"),
+        new("duo-lime",    "青柠 · 上黄绿 / 下靛蓝", "#C0EB75", "#91A7FF", "#66A80F", "#3B5BDB"),
+        new("ocean",   "海蓝 · 单色", "#74C0FC", "#74C0FC", "#1864AB", "#1864AB"),
+        new("forest",  "森林 · 单色", "#8CE99A", "#8CE99A", "#2B8A3E", "#2B8A3E"),
+        new("ember",   "余烬 · 单色", "#FFC078", "#FFC078", "#D9480F", "#D9480F"),
+        new("wine",    "酒红 · 单色", "#FAA2C1", "#FAA2C1", "#A61E4D", "#A61E4D"),
+        new("indigo",  "靛紫 · 单色", "#D0BFFF", "#D0BFFF", "#5F3DC4", "#5F3DC4"),
+        new("teal",    "墨青 · 单色", "#63E6BE", "#63E6BE", "#087F5B", "#087F5B"),
+        new("graphite","石墨 · 单色", "#DEE2E6", "#DEE2E6", "#343A40", "#343A40"),
     };
 
     /// <summary>Resolves (upload, download) colours for a scheme key on a dark or light backdrop.</summary>

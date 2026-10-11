@@ -124,7 +124,8 @@ public partial class FontDialog : Window
         int y = openBelow ? anchor.Bottom - shadow + 2 : anchor.Top - h + shadow - 2;
         x = Math.Clamp(x, mi.rcWork.Left - shadow + 4, Math.Max(mi.rcWork.Left, mi.rcWork.Right - w + shadow - 4));
         y = Math.Clamp(y, mi.rcWork.Top - shadow + 4, Math.Max(mi.rcWork.Top, mi.rcWork.Bottom - h + shadow - 4));
-        FrostedGlass.Capture(new RECT { Left = x + shadow - 4, Top = y + shadow - 4, Right = x + w - shadow + 4, Bottom = y + h - shadow + 4 });
+        const int grow = 120;
+        FrostedGlass.Capture(new RECT { Left = x + shadow - grow, Top = y + shadow - grow, Right = x + w - shadow + grow, Bottom = y + h - shadow + grow });
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, w, h, Native.SWP_SHOWWINDOW);
         FrostedGlass.Refresh(Glass);
         Activate();

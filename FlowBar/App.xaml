@@ -13,6 +13,10 @@
     <SolidColorBrush x:Key="GlassTint" Color="#B8FFFFFF"/>
     <SolidColorBrush x:Key="Accent" Color="#2563EB"/>
     <SolidColorBrush x:Key="AccentTx" Color="#10B981"/>
+    <SolidColorBrush x:Key="ChartRx" Color="#2563EB"/>
+    <SolidColorBrush x:Key="ChartRxEnd" Color="#06B6D4"/>
+    <SolidColorBrush x:Key="ChartTx" Color="#DB2777"/>
+    <SolidColorBrush x:Key="ChartTxEnd" Color="#8B5CF6"/>
 
     <Style x:Key="MenuText" TargetType="TextBlock">
       <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI"/>

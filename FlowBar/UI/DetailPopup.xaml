@@ -46,7 +46,7 @@
         </Grid.ColumnDefinitions>
         <StackPanel>
           <StackPanel Orientation="Horizontal">
-            <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource ChartRx}" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBlock Text="下载" Style="{StaticResource Subtle}"/>
           </StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
@@ -56,7 +56,7 @@
         </StackPanel>
         <StackPanel Grid.Column="1">
           <StackPanel Orientation="Horizontal">
-            <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource AccentTx}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource ChartTx}" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBlock Text="上传" Style="{StaticResource Subtle}"/>
           </StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,2,0,0">

@@ -473,6 +473,7 @@ public sealed class TaskbarWindow : Window
                 ApplyPlacement();
                 break;
             case "tone":
+                App.Current.ApplyTheme(); // chart + legend colours follow the scheme
                 RefreshTheme();
                 break;
             default:
@@ -553,7 +554,9 @@ public sealed class TaskbarWindow : Window
         tone.Items.Add(new Separator());
         foreach (var s in Theme.Schemes)
         {
-            var (up, down) = Theme.SchemeColors(s.Key, _darkBackdrop);
+            if (s.UpOnDark == s.DownOnDark && tone.Items[^1] is not Separator && Theme.Schemes.First(x => x.UpOnDark == x.DownOnDark) == s)
+                tone.Items.Add(new Separator()); // two-colour schemes above, single-colour below
+            var (up, down) = Theme.SchemeColors(s.Key, _darkBackdrop); // dots: first = upload, second = download
             var header = new StackPanel { Orientation = Orientation.Horizontal };
             header.Children.Add(Swatch(up));
             header.Children.Add(Swatch(down));

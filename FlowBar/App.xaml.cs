@@ -98,8 +98,13 @@ public partial class App : Application
         Set("MenuHover", light ? "#0F000000" : "#17FFFFFF");
         Set("MenuBorder", light ? "#20000000" : "#30FFFFFF");
         Set("GlassTint", light ? "#B8FFFFFF" : "#C0202020");
-        Set("Accent", light ? "#2563EB" : "#60A5FA");    // download (blue → cyan in the chart)
-        Set("AccentTx", light ? "#DB2777" : "#F472B6");  // upload (pink → violet in the chart)
+        Set("Accent", light ? "#2563EB" : "#60A5FA");
+        Set("AccentTx", light ? "#DB2777" : "#F472B6");
+        var (rx, rxEnd, tx, txEnd) = Theme.ChartColors(_cfg.ColorScheme, light);
+        Resources["ChartRx"] = new SolidColorBrush(rx);
+        Resources["ChartRxEnd"] = new SolidColorBrush(rxEnd);
+        Resources["ChartTx"] = new SolidColorBrush(tx);
+        Resources["ChartTxEnd"] = new SolidColorBrush(txEnd);
     }
 
     private void Set(string key, string hex) => Resources[key] = new SolidColorBrush(Theme.Hex(hex));
