@@ -106,6 +106,13 @@ internal static partial class Native
     public static partial IntPtr GetForegroundWindow();
 
     [LibraryImport("user32.dll")]
+    public static partial IntPtr GetWindow(IntPtr hWnd, uint cmd);
+    public const uint GW_HWNDPREV = 3;
+    public const int WM_KEYDOWN = 0x0100;
+    public const int WM_SYSKEYDOWN = 0x0104;
+    public const int VK_ESCAPE = 0x1B;
+
+    [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetForegroundWindow(IntPtr hWnd);
 

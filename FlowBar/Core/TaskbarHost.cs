@@ -130,7 +130,21 @@ public sealed class TaskbarHost
         }
 
         Place(lengthPx, force || geometryChanged);
+        Raise();
         return geometryChanged;
+    }
+
+    /// <summary>
+    /// Puts the widget back on top of its taskbar siblings. Explorer's Windows 11 XAML island raises
+    /// itself on activation changes; if it ends up above us, clicks in our spot go to the taskbar.
+    /// </summary>
+    public void Raise()
+    {
+        if (!_embedded || _hwnd == IntPtr.Zero || !Native.IsWindow(_hwnd)) return;
+        IntPtr above = Native.GetWindow(_hwnd, Native.GW_HWNDPREV);
+        while (above != IntPtr.Zero && !Native.IsWindowVisible(above)) above = Native.GetWindow(above, Native.GW_HWNDPREV);
+        if (above == IntPtr.Zero) return;
+        Native.SetWindowPos(_hwnd, Native.HWND_TOP, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
     }
 
     private void Place(int len, bool force)

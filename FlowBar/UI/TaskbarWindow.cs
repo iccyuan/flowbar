@@ -75,7 +75,9 @@ public sealed class TaskbarWindow : Window
         Width = 100; Height = 30;
 
         _pill.Child = _root;
-        _pill.Background = Brushes.Transparent;
+        // The pill's side padding is outside _root; keep it mouse-solid too, or a right-click near
+        // either end of the widget falls through and opens the taskbar's own menu.
+        _pill.Background = HitTestBrush;
         Content = _pill;
         // Layered windows hit-test by pixel alpha, so a fully transparent background would let clicks
         // between the two lines fall through to the taskbar. Alpha 1 is invisible but solid to the mouse.
@@ -88,6 +90,10 @@ public sealed class TaskbarWindow : Window
         // The tooltip shows ~0.5s after enter; grab its backdrop now, while nothing of ours is there.
         MouseEnter += (_, _) =>
         {
+            // Remember who is in front before any click lands on us: by the time the right-click
+            // arrives, Windows is mid-activation-change and GetForegroundWindow() returns null.
+            var fg = Native.GetForegroundWindow();
+            if (fg != IntPtr.Zero && fg != _focusSink?.Handle) _fgBeforeHover = fg;
             Native.GetWindowRect(_hwnd, out var r);
             FrostedGlass.CaptureAround((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2, 400, 160, 260);
         };
@@ -122,6 +128,9 @@ public sealed class TaskbarWindow : Window
         if (_menu != null) { _menu.IsOpen = false; _menu = null; }
         _popup?.Close();
         _fontDialog?.Close();
+        _fgRestore?.Stop();
+        _focusSink?.Dispose();
+        _focusSink = null;
         _host.Detach();
         if (IsAlive) Close();
     }
@@ -337,7 +346,7 @@ public sealed class TaskbarWindow : Window
         else
         {
             _pill.CornerRadius = new CornerRadius(0);
-            _pill.Background = Brushes.Transparent;
+            _pill.Background = HitTestBrush;
             _pill.BorderThickness = new Thickness(0);
         }
 
@@ -633,15 +642,77 @@ public sealed class TaskbarWindow : Window
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("退出 FlowBar", () => Application.Current.Shutdown()));
 
-        // Only the foreground window can hold mouse capture, and we never activate (we live inside the
-        // taskbar). Without capture the menu never hears a click outside itself: the click goes to
-        // whatever is underneath and the menu just stays open. Bring the menu's own popup window to
-        // the foreground once it exists; Windows allows that because the user just clicked on us.
-        menu.Opened += (_, _) =>
+        // Only the foreground thread can hold a real mouse capture, and we never activate (we live
+        // inside the taskbar). Without it the menu never hears a click outside itself and just stays
+        // open. Activating the menu's own window after it opened is no good either: changing the
+        // active window cancels the capture WPF just took, and the menu closes on the spot. So make
+        // our thread the foreground one first, through an invisible helper window, exactly like a
+        // tray icon app does before TrackPopupMenu. Windows allows it because the user just clicked us.
+        IntPtr prevFg = Native.GetForegroundWindow();
+        if (prevFg == IntPtr.Zero || prevFg == _focusSink?.Handle) prevFg = _fgBeforeHover;
+        IntPtr sink = FocusSink;
+        _fgRestore?.Stop();
+        bool gotFg = Native.SetForegroundWindow(sink);
+        menu.Closed += (_, _) =>
         {
-            if (PresentationSource.FromVisual(menu) is HwndSource src) Native.SetForegroundWindow(src.Handle);
+            // Hand the foreground back a moment later rather than at once. A right-click on the widget
+            // while the menu is open closes it on button-down and reopens it on button-up; restoring
+            // in between would make the previous window's title bar blink.
+            var t = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(250) };
+            t.Tick += (_, _) =>
+            {
+                t.Stop();
+                if (_menu != null) return;
+                // Unless something else (font dialog, the window the user clicked on, an Explorer
+                // window we launched) took the foreground meanwhile.
+                if (gotFg && Native.GetForegroundWindow() == sink && prevFg != IntPtr.Zero
+                    && Native.IsWindow(prevFg) && Native.IsWindowVisible(prevFg))
+                    Native.SetForegroundWindow(prevFg);
+                // Activation changes make Explorer's XAML island re-raise itself above us; a click in
+                // our spot would then open the taskbar's own menu instead of ours.
+                _host.Raise();
+            };
+            _fgRestore = t;
+            t.Start();
         };
         menu.IsOpen = true;
+    }
+
+    private HwndSource? _focusSink;
+    private IntPtr _fgBeforeHover;
+    private DispatcherTimer? _fgRestore;
+
+    /// <summary>
+    /// A zero-size, off-screen top-level window on our thread. Activating it makes us the foreground
+    /// thread, which is what mouse capture needs; the widget itself can't be activated because it is
+    /// a child of Explorer's taskbar.
+    /// </summary>
+    private IntPtr FocusSink
+    {
+        get
+        {
+            if (_focusSink == null || _focusSink.IsDisposed)
+            {
+                _focusSink = new HwndSource(new HwndSourceParameters("FlowBar focus")
+                {
+                    WindowStyle = unchecked((int)(Native.WS_POPUP | Native.WS_VISIBLE)),
+                    ExtendedWindowStyle = (int)Native.WS_EX_TOOLWINDOW,
+                    PositionX = -32000, PositionY = -32000, Width = 0, Height = 0,
+                });
+                // Keyboard input lands here while the menu is open (it has the focus, the menu only has
+                // the mouse capture). WPF usually forwards Esc to the menu; make sure of it.
+                _focusSink.AddHook((IntPtr _, int msg, IntPtr wp, IntPtr _, ref bool handled) =>
+                {
+                    if (msg is Native.WM_KEYDOWN or Native.WM_SYSKEYDOWN && wp == Native.VK_ESCAPE && _menu != null)
+                    {
+                        _menu.IsOpen = false;
+                        handled = true;
+                    }
+                    return IntPtr.Zero;
+                });
+            }
+            return _focusSink.Handle;
+        }
     }
 
     private FontDialog? _fontDialog;
