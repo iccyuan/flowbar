@@ -168,6 +168,86 @@ internal static partial class Native
     [LibraryImport("iphlpapi.dll")]
     public static partial void FreeMibTable(IntPtr table);
 
+    // ---- processes -------------------------------------------------------
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint pid);
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CloseHandle(IntPtr h);
+
+    [LibraryImport("kernel32.dll")]
+    private static partial uint WaitForSingleObject(IntPtr h, uint ms);
+
+    [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool QueryFullProcessImageNameW(IntPtr process, uint flags, Span<char> buffer, ref uint size);
+
+    private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    private const uint SYNCHRONIZE = 0x00100000;
+
+    /// <summary>Full image path of a process, or "" when it is gone or protected.</summary>
+    public static string ProcessImagePath(int pid)
+    {
+        IntPtr h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)pid);
+        if (h == IntPtr.Zero) return "";
+        try
+        {
+            Span<char> buf = stackalloc char[1024];
+            uint n = (uint)buf.Length;
+            return QueryFullProcessImageNameW(h, 0, buf, ref n) ? new string(buf[..(int)n]) : "";
+        }
+        finally { CloseHandle(h); }
+    }
+
+    /// <summary>False once the process has exited. Processes we may not open count as alive.</summary>
+    public static bool ProcessAlive(int pid)
+    {
+        IntPtr h = OpenProcess(SYNCHRONIZE, false, (uint)pid);
+        if (h == IntPtr.Zero) return Marshal.GetLastWin32Error() == 5; // ERROR_ACCESS_DENIED: exists, protected
+        try { return WaitForSingleObject(h, 0) != 0; }
+        finally { CloseHandle(h); }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private unsafe struct SHFILEINFOW
+    {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        public fixed char szDisplayName[260];
+        public fixed char szTypeName[80];
+    }
+
+    [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial IntPtr SHGetFileInfoW(string path, uint attrs, ref SHFILEINFOW info, uint size, uint flags);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DestroyIcon(IntPtr icon);
+
+    /// <summary>
+    /// The 16px shell icon of a file; the caller destroys it. With <paramref name="byExtension"/> the
+    /// file need not exist: the icon is the stock one for its extension (e.g. "app.exe").
+    /// </summary>
+    public static unsafe IntPtr SmallIconOf(string path, bool byExtension = false)
+    {
+        var info = new SHFILEINFOW();
+        uint flags = 0x100 | 0x1; // SHGFI_ICON | SHGFI_SMALLICON
+        if (byExtension) flags |= 0x10; // SHGFI_USEFILEATTRIBUTES
+        SHGetFileInfoW(path, byExtension ? 0x80u /* FILE_ATTRIBUTE_NORMAL */ : 0u, ref info, (uint)sizeof(SHFILEINFOW), flags);
+        return info.hIcon;
+    }
+
+    // ---- connection tables -----------------------------------------------
+
+    [LibraryImport("iphlpapi.dll")]
+    public static partial uint GetExtendedTcpTable(IntPtr table, ref uint size, [MarshalAs(UnmanagedType.Bool)] bool order, uint family, int tableClass, uint reserved);
+
+    [LibraryImport("iphlpapi.dll")]
+    public static partial uint GetExtendedUdpTable(IntPtr table, ref uint size, [MarshalAs(UnmanagedType.Bool)] bool order, uint family, int tableClass, uint reserved);
+
     // ---- helpers -------------------------------------------------------
 
     public static long GetStyle(IntPtr h) => GetWindowLongPtr(h, GWL_STYLE).ToInt64();

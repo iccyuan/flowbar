@@ -12,31 +12,50 @@ public partial class App : Application
     private const string MutexName = "FlowBar.SingleInstance";
     private const string ExitEventName = "FlowBar.ExitRequest";
     private const string ShowEventName = "FlowBar.ShowRequest";
+    private const string AppsEventName = "FlowBar.AppsRequest";
 
     private Mutex? _mutex;
-    private AppConfig _cfg = new();
+    private AppConfig _cfg = null!; // assigned in OnStartup, after the config directory is known
     private NetSampler? _sampler;
     private TrafficLog? _traffic;
+    private AppTraffic? _apps;
     private TaskbarWindow? _window;
     private EventWaitHandle? _exitEvent;
     private EventWaitHandle? _showEvent;
+    private EventWaitHandle? _appsEvent;
     private DispatcherTimer? _themeDebounce;
 
     public static new App Current => (App)Application.Current;
     public AppConfig Config => _cfg;
+    public AppTraffic AppTraffic => _apps!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
+        // `--dir <path>` is the command-line twin of FLOWBAR_DIR (the environment does not survive a
+        // UAC relaunch). Must run before anything touches AppConfig or Log.
+        int di = Array.FindIndex(e.Args, a => a.Equals("--dir", StringComparison.OrdinalIgnoreCase));
+        if (di >= 0 && di + 1 < e.Args.Length) Environment.SetEnvironmentVariable("FLOWBAR_DIR", e.Args[di + 1]);
+
         bool wantExit = e.Args.Any(a => a.Equals("--exit", StringComparison.OrdinalIgnoreCase));
-        bool isolated = Environment.GetEnvironmentVariable("FLOWBAR_DIR") is { Length: > 0 };
-        _mutex = new Mutex(true, isolated ? MutexName + ".test" : MutexName, out bool first);
+        // `--wait-for <pid>`: we were launched to replace that instance (elevation restart); let it
+        // release the mutex and the taskbar first.
+        int wi = Array.FindIndex(e.Args, a => a.Equals("--wait-for", StringComparison.OrdinalIgnoreCase));
+        if (wi >= 0 && wi + 1 < e.Args.Length && int.TryParse(e.Args[wi + 1], out int waitPid))
+        {
+            try { System.Diagnostics.Process.GetProcessById(waitPid).WaitForExit(8000); } catch { }
+        }
+        // A test instance (FLOWBAR_DIR set) gets its own mutex and signals, so it never talks to the real one.
+        string suffix = Environment.GetEnvironmentVariable("FLOWBAR_DIR") is { Length: > 0 } ? ".test" : "";
+        _mutex = new Mutex(true, MutexName + suffix, out bool first);
         if (!first)
         {
             // Another FlowBar owns the taskbar. Hand the request over instead of vanishing silently:
-            // `--exit` asks it to quit, a plain double-click asks it to show its detail popup.
-            string name = wantExit ? ExitEventName : ShowEventName;
+            // `--exit` asks it to quit, `--apps` to open the per-program window, a plain double-click
+            // to show its detail popup.
+            bool wantApps = e.Args.Any(a => a.Equals("--apps", StringComparison.OrdinalIgnoreCase));
+            string name = (wantExit ? ExitEventName : wantApps ? AppsEventName : ShowEventName) + suffix;
             bool delivered = false;
             try { EventWaitHandle.OpenExisting(name).Set(); delivered = true; } catch { }
             if (!delivered && !wantExit)
@@ -60,6 +79,8 @@ public partial class App : Application
         _sampler = new NetSampler { Selection = _cfg.Adapter };
         _sampler.Sampled += snap => _traffic.Add(snap.DeltaRx, snap.DeltaTx);
         _sampler.Start(_cfg.IntervalMs);
+        _apps = new AppTraffic();
+        _apps.Start();
 
         CreateWindow();
         var w = _window!;
@@ -69,6 +90,10 @@ public partial class App : Application
         if (e.Args.Contains("--popup")) Dispatcher.BeginInvoke(w.OpenPopup, DispatcherPriority.ApplicationIdle);
         if (e.Args.Contains("--menu")) Dispatcher.BeginInvoke(w.DebugOpenMenu, DispatcherPriority.ApplicationIdle);
         if (e.Args.Contains("--tip")) Dispatcher.BeginInvoke(w.DebugShowTip, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--apps")) Dispatcher.BeginInvoke(w.OpenApps, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--conns")) Dispatcher.BeginInvoke(() => w.OpenApps(connections: true), DispatcherPriority.ApplicationIdle);
+        if (Array.Find(e.Args, a => a.StartsWith("--stats", StringComparison.OrdinalIgnoreCase)) is { } st)
+            Dispatcher.BeginInvoke(() => w.OpenStats(st.Length > 8 && int.TryParse(st[8..], out int d) ? d : 0), DispatcherPriority.ApplicationIdle);
 
         // Theme / display changes come from a hidden broadcast window owned by SystemEvents, which is
         // the only way to hear WM_SETTINGCHANGE once we live as a child of the taskbar.
@@ -78,18 +103,38 @@ public partial class App : Application
         SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.BeginInvoke(() => _window?.Relayout());
 
         // `FlowBar.exe --exit` from a second process asks us to quit cleanly (restores the taskbar).
-        _exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ExitEventName);
+        _exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ExitEventName + suffix);
         ThreadPool.RegisterWaitForSingleObject(_exitEvent, (_, _) => Dispatcher.BeginInvoke(Shutdown), null, -1, true);
         // A second launch (double-clicking the exe again) asks us to open the detail popup.
-        _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+        _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName + suffix);
         ThreadPool.RegisterWaitForSingleObject(_showEvent, (_, _) => Dispatcher.BeginInvoke(() => _window?.OpenPopup()), null, -1, false);
+        _appsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, AppsEventName + suffix);
+        ThreadPool.RegisterWaitForSingleObject(_appsEvent, (_, _) => Dispatcher.BeginInvoke(() => _window?.OpenApps()), null, -1, false);
 
         // WPF start-up leaves a lot of touched-but-cold pages behind; hand them back once we're idle.
         var trim = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
         trim.Tick += (_, _) => { trim.Stop(); TrimWorkingSet(); };
         trim.Start();
 
-        Log.Write($"started v{typeof(App).Assembly.GetName().Version}");
+        Log.Write($"started v{typeof(App).Assembly.GetName().Version}" + (AppTraffic.IsElevated ? " (elevated)" : ""));
+    }
+
+    /// <summary>
+    /// Relaunches FlowBar through UAC and quits. The new instance waits for us to exit, then opens
+    /// the apps window straight away since that is what the user was after.
+    /// </summary>
+    public void RestartElevated()
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+        {
+            UseShellExecute = true,
+            Verb = "runas",
+            Arguments = $"--wait-for {Environment.ProcessId} --apps"
+                + (Environment.GetEnvironmentVariable("FLOWBAR_DIR") is { Length: > 0 } dir ? $" --dir \"{dir}\"" : ""),
+        };
+        try { System.Diagnostics.Process.Start(psi); }
+        catch (Exception ex) { Log.Write("elevate: " + ex.Message); return; } // UAC declined
+        Shutdown();
     }
 
     private void CreateWindow()
@@ -152,6 +197,7 @@ public partial class App : Application
         try
         {
             _window?.Shutdown();
+            _apps?.Dispose();
             _sampler?.Dispose();
             _traffic?.Save();
             // No config save here on purpose: every setting change already saves itself, and a

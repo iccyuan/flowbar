@@ -106,6 +106,9 @@
         <TextBlock Grid.Row="3" Grid.Column="2" x:Name="SessTx" Style="{StaticResource Num}" Margin="0,3,0,0"/>
       </Grid>
 
+      <Button x:Name="AppsButton" Style="{StaticResource FlatButton}" HorizontalAlignment="Left" Margin="-10,8,0,-6"
+              Foreground="{DynamicResource Accent}" Content="各程序流量与连接  ›"/>
+
       <Border Height="1" Margin="0,12,0,8" Background="{DynamicResource MenuBorder}"/>
 
       <!-- adapters -->

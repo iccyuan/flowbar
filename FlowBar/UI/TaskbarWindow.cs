@@ -36,6 +36,7 @@ public sealed class TaskbarWindow : Window
     private readonly Border _pill = new();
     private TextBlock? _rxValue, _rxUnit, _txValue, _txUnit;
     private DetailPopup? _popup;
+    private AppsWindow? _apps;
     private ContextMenu? _menu;
     private Snapshot? _last;
     private bool _dragging;
@@ -127,6 +128,7 @@ public sealed class TaskbarWindow : Window
         // would linger (and release the single-instance mutex) without ever exiting.
         if (_menu != null) { _menu.IsOpen = false; _menu = null; }
         _popup?.Close();
+        _apps?.Close();
         _fontDialog?.Close();
         _fgRestore?.Stop();
         _focusSink?.Dispose();
@@ -486,7 +488,11 @@ public sealed class TaskbarWindow : Window
     private void TogglePopup()
     {
         if (_popup is { IsVisible: true }) { _popup.Hide(); return; }
-        _popup ??= new DetailPopup(_cfg, _sampler, _traffic, OnSettingsChanged);
+        if (_popup == null)
+        {
+            _popup = new DetailPopup(_cfg, _sampler, _traffic, OnSettingsChanged);
+            _popup.OpenApps = OpenApps;
+        }
         if (_last != null) _popup.Update(_last, _sampler, _traffic);
         Native.GetWindowRect(_hwnd, out var anchor);
         bool openBelow = _embedded ? _host.TaskbarAtStartEdge : anchor.Top < 200;
@@ -521,6 +527,26 @@ public sealed class TaskbarWindow : Window
 
     /// <summary>Debug hook (--menu): opens the context menu anchored to the widget instead of the mouse.</summary>
     public void DebugOpenMenu() => ShowMenu(anchored: true);
+
+    /// <summary>Opens (or brings back) the per-program traffic / connections window.</summary>
+    public void OpenApps() => OpenApps(connections: false);
+    private int _openStats = -1;
+    public void OpenStats(int days = 0) { _openStats = days; OpenApps(connections: false); }
+
+    public void OpenApps(bool connections)
+    {
+        if (_popup is { IsVisible: true }) _popup.Hide();
+        if (_apps == null)
+        {
+            _apps = new AppsWindow(_cfg, App.Current.AppTraffic);
+            _apps.Closed += (_, _) => _apps = null;
+        }
+        if (connections) _apps.ShowConnections();
+        if (_openStats >= 0) { _apps.ShowStats(_openStats); _openStats = -1; }
+        if (_apps.WindowState == WindowState.Minimized) _apps.WindowState = WindowState.Normal;
+        if (!_apps.IsVisible) _apps.Show();
+        _apps.Activate();
+    }
 
     /// <summary>Debug hook (--tip): shows the hover tooltip without moving the mouse.</summary>
     public void DebugShowTip()
@@ -565,6 +591,9 @@ public sealed class TaskbarWindow : Window
         }
         MenuItem Choice<T>(string header, T current, T value, Action<T> set, string what)
             => Item(header, () => { set(value); OnSettingsChanged(what); }, Equals(current, value));
+
+        menu.Items.Add(Item("各程序流量与连接…", OpenApps));
+        menu.Items.Add(new Separator());
 
         // Adapter
         var adapters = new MenuItem { Header = "网卡" };

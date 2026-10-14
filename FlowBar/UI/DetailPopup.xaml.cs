@@ -18,6 +18,9 @@ public partial class DetailPopup : Window
     private IntPtr _hwnd;
     private string _adapterKey = "";
 
+    /// <summary>Set by the owner: opens the per-program window.</summary>
+    public Action? OpenApps { get; set; }
+
     public DetailPopup(AppConfig cfg, NetSampler sampler, TrafficLog traffic, Action<string> changed)
     {
         _cfg = cfg;
@@ -25,6 +28,7 @@ public partial class DetailPopup : Window
         InitializeComponent();
         Deactivated += (_, _) => Hide();
         QuitButton.Click += (_, _) => Application.Current.Shutdown();
+        AppsButton.Click += (_, _) => { Hide(); OpenApps?.Invoke(); };
         KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Escape) Hide(); };
     }
 
