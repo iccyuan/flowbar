@@ -17,6 +17,11 @@
     <TieredPGO>true</TieredPGO>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <ApplicationIcon>Assets/app.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets/logo.png" />
+  </ItemGroup>
 
 </Project>

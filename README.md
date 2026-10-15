@@ -15,7 +15,7 @@ Windows 任务栏网速监控。一个嵌在任务栏里的小组件，实时显
 - 面板 / 菜单 / 提示 / 对话框均为快照式毛玻璃
 - 自适应任务栏高度：两行 / 单行布局，字号自动
 - 今日 / 本月累计流量持久化（`%AppData%\FlowBar\traffic.json`）
-- 各程序流量与连接：按程序列出实时上下行、今日累计、连接数，表头可排序；连接页列出每条 TCP / UDP 连接的归属程序、地址、状态和速率；统计页按今日 / 7 天 / 30 天看每日柱状图和程序排行，点某个程序只看它的每日流量
+- 各程序流量与连接：按程序列出实时上下行、今日累计、连接数，表头可排序，同名进程折叠成一行、点击展开到每个 PID，顶部筛选框（Ctrl+F）按程序名 / 地址过滤；连接页同样按程序分组（连接数、汇总速率、已连接 / 监听数），展开后列出每条 TCP / UDP 连接的地址、状态和速率；统计页按今日 / 7 天 / 30 天看每日柱状图和程序排行，点某个程序只看它的每日流量
   - 连接列表无需特权；按程序统计网速用的是内核网络 ETW 事件（与任务管理器同源），需要管理员权限，窗口内一键以管理员身份重启
   - 按日、按程序累计持久化（`%AppData%\FlowBar\apps.json`）
 - 开机自启（HKCU Run）、单实例、`FlowBar.exe --exit` 优雅退出并恢复任务栏
@@ -40,7 +40,7 @@ dotnet publish FlowBar/FlowBar.csproj -c Release -r win-x64 --self-contained fal
 
 配置文件：`%AppData%\FlowBar\config.json`，日志：`%AppData%\FlowBar\flowbar.log`。
 
-调试：设置环境变量 `FLOWBAR_DIR`（或参数 `--dir <路径>`）可让实例使用独立配置目录（单实例互斥量与退出 / 唤起信号也随之隔离）；`--font` / `--popup` / `--menu` / `--apps` / `--conns` / `--stats[=7|30]` 启动后直接打开字体对话框 / 详情面板 / 右键菜单 / 程序流量窗口 / 连接页 / 统计页，便于无交互截图。 已有实例在运行时，再执行 `FlowBar.exe --apps` 会让它打开程序流量窗口。
+调试：设置环境变量 `FLOWBAR_DIR`（或参数 `--dir <路径>`）可让实例使用独立配置目录（单实例互斥量与退出 / 唤起信号也随之隔离）；`--font` / `--popup` / `--menu` / `--apps` / `--apps=expand` / `--conns` / `--stats[=7|30]` 启动后直接打开字体对话框 / 详情面板 / 右键菜单 / 程序流量窗口（可全部展开）/ 连接页 / 统计页，便于无交互截图。 已有实例在运行时，再执行 `FlowBar.exe --apps` 会让它打开程序流量窗口。
 
 ## 代码结构
 
@@ -60,7 +60,8 @@ FlowBar/
   Core/Formatting.cs   单位格式化
   UI/TaskbarWindow.cs  任务栏小组件（代码构建布局）+ 右键菜单
   UI/DetailPopup.xaml  详情面板
-  UI/AppsWindow.xaml   各程序流量 / 连接窗口
+  UI/AppsWindow.xaml   各程序流量 / 连接 / 统计窗口（Mica 背景）
+  Assets/              应用图标（app.ico、logo.png）
   App.xaml             菜单 / 按钮样式与调色板
   UI/FontDialog.xaml   字体 / 字重选择对话框
   Core/FrostedGlass.cs 快照式毛玻璃（截屏→模糊→按屏幕位置切片）

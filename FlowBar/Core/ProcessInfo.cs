@@ -68,9 +68,17 @@ public sealed class ProcessInfo
     /// <summary>The shell's stock "application" icon, for processes whose file we cannot see.</summary>
     public ImageSource? GenericIcon => _generic ??= IconFor("app.exe", generic: true);
 
-    /// <summary>Best-effort icon for a program that is not running: a System32 namesake, else the stock icon.</summary>
-    public ImageSource? IconForName(string name)
+    /// <summary>
+    /// Best-effort icon for a program that is not running: the path it last ran from when known, else a
+    /// System32 namesake, else the stock icon.
+    /// </summary>
+    public ImageSource? IconForName(string name, string? lastPath = null)
     {
+        if (!string.IsNullOrEmpty(lastPath) && System.IO.File.Exists(lastPath))
+        {
+            var img = IconFor(lastPath);
+            if (img != null) return img;
+        }
         string guess = System.IO.Path.Combine(Environment.SystemDirectory, name + ".exe");
         return (System.IO.File.Exists(guess) ? IconFor(guess) : null) ?? GenericIcon;
     }

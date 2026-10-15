@@ -12,6 +12,8 @@ public sealed class AppTrafficLog
     {
         /// <summary>day → program name → [rx, tx]</summary>
         public Dictionary<string, Dictionary<string, ulong[]>> Days { get; set; } = new();
+        /// <summary>program name → last image path seen, so exited programs keep their icon</summary>
+        public Dictionary<string, string> Paths { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private readonly Store _store;
@@ -32,6 +34,22 @@ public sealed class AppTrafficLog
 
     private static string Key(DateTime d) => d.ToString("yyyy-MM-dd");
 
+    public void RememberPath(string name, string path)
+    {
+        if (name.Length == 0 || path.Length == 0) return;
+        lock (_gate)
+        {
+            if (_store.Paths.TryGetValue(name, out var cur) && cur == path) return;
+            _store.Paths[name] = path;
+            _dirty = true;
+        }
+    }
+
+    public string? PathOf(string name)
+    {
+        lock (_gate) return _store.Paths.TryGetValue(name, out var p) ? p : null;
+    }
+
     public void Add(string name, ulong rx, ulong tx)
     {
         if (rx == 0 && tx == 0 || name.Length == 0) return;
@@ -44,8 +62,12 @@ public sealed class AppTrafficLog
             v[1] += tx;
             _dirty = true;
             if (_store.Days.Count > 40)
+            {
                 foreach (var old in _store.Days.Keys.OrderBy(x => x).Take(_store.Days.Count - 31).ToList())
                     _store.Days.Remove(old);
+                var live = new HashSet<string>(_store.Days.Values.SelectMany(d => d.Keys), StringComparer.OrdinalIgnoreCase);
+                foreach (var n in _store.Paths.Keys.Where(n => !live.Contains(n)).ToList()) _store.Paths.Remove(n);
+            }
         }
         if ((DateTime.Now - _lastSave).TotalSeconds > 30) Save();
     }

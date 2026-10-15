@@ -91,6 +91,7 @@ public partial class App : Application
         if (e.Args.Contains("--menu")) Dispatcher.BeginInvoke(w.DebugOpenMenu, DispatcherPriority.ApplicationIdle);
         if (e.Args.Contains("--tip")) Dispatcher.BeginInvoke(w.DebugShowTip, DispatcherPriority.ApplicationIdle);
         if (e.Args.Contains("--apps")) Dispatcher.BeginInvoke(w.OpenApps, DispatcherPriority.ApplicationIdle);
+        if (e.Args.Contains("--apps=expand")) Dispatcher.BeginInvoke(w.OpenAppsExpanded, DispatcherPriority.ApplicationIdle);
         if (e.Args.Contains("--conns")) Dispatcher.BeginInvoke(() => w.OpenApps(connections: true), DispatcherPriority.ApplicationIdle);
         if (Array.Find(e.Args, a => a.StartsWith("--stats", StringComparison.OrdinalIgnoreCase)) is { } st)
             Dispatcher.BeginInvoke(() => w.OpenStats(st.Length > 8 && int.TryParse(st[8..], out int d) ? d : 0), DispatcherPriority.ApplicationIdle);
@@ -182,6 +183,12 @@ public partial class App : Application
         Set("MenuBorder", light ? "#20000000" : "#30FFFFFF");
         Set("GlassTint", light ? "#B8FFFFFF" : "#C0202020");
         Set("Accent", light ? "#2563EB" : "#60A5FA");
+        Set("AccentSoft", light ? "#182563EB" : "#2660A5FA");
+        Set("CardBg", light ? "#B3FFFFFF" : "#1AFFFFFF");
+        Set("CardBorder", light ? "#14000000" : "#1FFFFFFF");
+        Set("SegmentBg", light ? "#0D000000" : "#1AFFFFFF");
+        Set("SegmentOn", light ? "#FFFFFFFF" : "#38FFFFFF");
+        Set("Ok", light ? "#16A34A" : "#4ADE80");
         Set("AccentTx", light ? "#DB2777" : "#F472B6");
         var (rx, rxEnd, tx, txEnd) = Theme.ChartColors(_cfg.ColorScheme, light);
         Resources["ChartRx"] = new SolidColorBrush(rx);

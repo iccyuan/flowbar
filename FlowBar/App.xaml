@@ -12,6 +12,12 @@
     <SolidColorBrush x:Key="MenuBorder" Color="#20000000"/>
     <SolidColorBrush x:Key="GlassTint" Color="#B8FFFFFF"/>
     <SolidColorBrush x:Key="Accent" Color="#2563EB"/>
+    <SolidColorBrush x:Key="AccentSoft" Color="#182563EB"/>
+    <SolidColorBrush x:Key="CardBg" Color="#B3FFFFFF"/>
+    <SolidColorBrush x:Key="CardBorder" Color="#14000000"/>
+    <SolidColorBrush x:Key="SegmentBg" Color="#0D000000"/>
+    <SolidColorBrush x:Key="SegmentOn" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="Ok" Color="#16A34A"/>
     <SolidColorBrush x:Key="AccentTx" Color="#10B981"/>
     <SolidColorBrush x:Key="ChartRx" Color="#2563EB"/>
     <SolidColorBrush x:Key="ChartRxEnd" Color="#06B6D4"/>

@@ -81,12 +81,12 @@ public sealed class AppTraffic : IDisposable
 
     public ProcessEntry ProcessOf(int pid) => _procs.Get(pid);
 
-    /// <summary>Icon for a program name: from a live process when there is one, else a guess.</summary>
+    /// <summary>Icon for a program name: from a live process when there is one, else from the path it last ran from, else a guess.</summary>
     public ImageSource? IconFor(string name)
     {
         foreach (var r in _rows.Values)
             if (r.Icon != null && r.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) return r.Icon;
-        return _procs.IconForName(name);
+        return _procs.IconForName(name, Log.PathOf(name));
     }
 
     /// <summary>Current rate of one connection, matched against the ETW flows seen in the last tick.</summary>
@@ -170,6 +170,7 @@ public sealed class AppTraffic : IDisposable
         var p = _procs.Get(pid);
         row = new AppRow { Pid = pid, Name = p.Name, Path = p.Path, Icon = p.Icon };
         _rows[pid] = row;
+        Log.RememberPath(p.Name, p.Path);
         return row;
     }
 

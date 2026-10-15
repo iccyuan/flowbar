@@ -2,14 +2,14 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="FlowBar 应用流量"
-        Width="860" Height="560" MinWidth="700" MinHeight="380"
+        Width="960" Height="620" MinWidth="760" MinHeight="420"
         WindowStyle="None" ResizeMode="CanResize" ShowInTaskbar="True" WindowStartupLocation="CenterScreen"
         Background="{DynamicResource MenuBg}" Foreground="{DynamicResource MenuFg}"
         FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="13"
         TextOptions.TextFormattingMode="Display" TextOptions.TextHintingMode="Animated"
         UseLayoutRounding="True" SnapsToDevicePixels="True">
   <WindowChrome.WindowChrome>
-    <WindowChrome CaptionHeight="44" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    <WindowChrome CaptionHeight="48" ResizeBorderThickness="6" GlassFrameThickness="-1" CornerRadius="0" UseAeroCaptionButtons="False"/>
   </WindowChrome.WindowChrome>
 
   <Window.Resources>
@@ -25,8 +25,45 @@
       <Setter Property="TextAlignment" Value="Right"/>
       <Setter Property="Margin" Value="0,0,6,0"/>
     </Style>
+    <Style x:Key="Glyph" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+      <Setter Property="Foreground" Value="{DynamicResource MenuSubtle}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
 
-    <!-- tab / toggle pills -->
+    <!-- segmented tabs: a soft track with the chosen segment raised -->
+    <Style x:Key="Segment" TargetType="RadioButton">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Foreground" Value="{DynamicResource MenuSubtle}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Padding" Value="16,5"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="Bg" CornerRadius="7" Background="Transparent" Padding="{TemplateBinding Padding}" Margin="2">
+              <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" TextBlock.Foreground="{TemplateBinding Foreground}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SegmentOn}"/>
+                <Setter TargetName="Bg" Property="Effect">
+                  <Setter.Value>
+                    <DropShadowEffect BlurRadius="6" ShadowDepth="1" Opacity="0.12"/>
+                  </Setter.Value>
+                </Setter>
+                <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- small toggle / range pills -->
     <Style x:Key="Pill" TargetType="ToggleButton">
       <Setter Property="OverridesDefaultStyle" Value="True"/>
       <Setter Property="Foreground" Value="{DynamicResource MenuSubtle}"/>
@@ -35,7 +72,7 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ToggleButton">
-            <Border x:Name="Bg" CornerRadius="12" Background="Transparent" Padding="{TemplateBinding Padding}">
+            <Border x:Name="Bg" CornerRadius="12" Background="Transparent" BorderThickness="1" BorderBrush="Transparent" Padding="{TemplateBinding Padding}">
               <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" TextBlock.Foreground="{TemplateBinding Foreground}"/>
             </Border>
             <ControlTemplate.Triggers>
@@ -43,8 +80,8 @@
                 <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MenuHover}"/>
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MenuHover}"/>
-                <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
+                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource AccentSoft}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -52,11 +89,85 @@
       </Setter>
     </Style>
 
-    <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <!-- caption buttons -->
+    <Style x:Key="CaptionButton" TargetType="Button">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
       <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
-      <Setter Property="FontSize" Value="11"/>
-      <Setter Property="Padding" Value="12,8"/>
-      <Setter Property="Foreground" Value="{DynamicResource MenuSubtle}"/>
+      <Setter Property="FontSize" Value="10"/>
+      <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
+      <Setter Property="Width" Value="46"/>
+      <Setter Property="Height" Value="32"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bg" Background="Transparent" CornerRadius="6">
+              <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" TextBlock.Foreground="{TemplateBinding Foreground}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MenuHover}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="CloseCaptionButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bg" Background="Transparent" CornerRadius="6">
+              <ContentPresenter x:Name="Cp" VerticalAlignment="Center" HorizontalAlignment="Center" TextBlock.Foreground="{TemplateBinding Foreground}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="#C42B1C"/>
+                <Setter TargetName="Cp" Property="TextBlock.Foreground" Value="White"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- filter box -->
+    <Style x:Key="FilterBox" TargetType="TextBox">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
+      <Setter Property="CaretBrush" Value="{DynamicResource MenuFg}"/>
+      <Setter Property="Background" Value="{DynamicResource SegmentBg}"/>
+      <Setter Property="Padding" Value="28,5,10,5"/>
+      <Setter Property="Width" Value="200"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TextBox">
+            <Border x:Name="Bg" CornerRadius="8" Background="{TemplateBinding Background}" BorderThickness="1" BorderBrush="Transparent">
+              <Grid>
+                <TextBlock Text="&#xE721;" Style="{StaticResource Glyph}" FontSize="12" Margin="10,0,0,0" HorizontalAlignment="Left"/>
+                <TextBlock x:Name="Hint" Text="筛选…" Style="{StaticResource Subtle}" FontSize="13" Margin="28,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/>
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="Text" Value="">
+                <Setter TargetName="Hint" Property="Visibility" Value="Visible"/>
+              </Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- card -->
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Background" Value="{DynamicResource CardBg}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
+      <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
     <!-- column headers -->
@@ -68,13 +179,14 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="GridViewColumnHeader">
-            <Border x:Name="Bg" Background="Transparent" Padding="6,6,6,7" BorderBrush="{DynamicResource MenuBorder}" BorderThickness="0,0,0,1" Cursor="Hand">
+            <Border x:Name="Bg" Background="Transparent" Padding="8,8,8,9" BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,0,0,1" Cursor="Hand">
               <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"
                                 TextBlock.Foreground="{TemplateBinding Foreground}"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MenuHover}"/>
+                <Setter Property="Foreground" Value="{DynamicResource MenuFg}"/>
               </Trigger>
               <Trigger Property="Role" Value="Padding">
                 <Setter TargetName="Bg" Property="Cursor" Value="Arrow"/>
@@ -97,7 +209,7 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ListViewItem">
-            <Border x:Name="Bg" CornerRadius="5" Padding="0,4" Margin="0,1" Background="Transparent">
+            <Border x:Name="Bg" CornerRadius="6" Padding="0,5" Margin="0,1" Background="Transparent">
               <GridViewRowPresenter Content="{TemplateBinding Content}" Columns="{TemplateBinding GridView.ColumnCollection}"/>
             </Border>
             <ControlTemplate.Triggers>
@@ -105,10 +217,14 @@
                 <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MenuHover}"/>
               </Trigger>
               <Trigger Property="IsSelected" Value="True">
-                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MenuHover}"/>
+                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource AccentSoft}"/>
               </Trigger>
               <DataTrigger Binding="{Binding Dim}" Value="True">
                 <Setter Property="Opacity" Value="0.55"/>
+              </DataTrigger>
+              <DataTrigger Binding="{Binding IsChild}" Value="True">
+                <Setter TargetName="Bg" Property="Padding" Value="0,3"/>
+                <Setter TargetName="Bg" Property="Margin" Value="0"/>
               </DataTrigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -135,10 +251,10 @@
                       ColumnHeaderTemplate="{Binding Path=TemplatedParent.View.ColumnHeaderTemplate, RelativeSource={RelativeSource TemplatedParent}}"
                       AllowsColumnReorder="False"/>
                 </ScrollViewer>
-                <ScrollContentPresenter Name="PART_ScrollContentPresenter" KeyboardNavigation.DirectionalNavigation="Local"
+                <ScrollContentPresenter Name="PART_ScrollContentPresenter" KeyboardNavigation.DirectionalNavigation="Local" Margin="0,3,0,0"
                                         CanContentScroll="{TemplateBinding CanContentScroll}"/>
               </DockPanel>
-              <ScrollBar Grid.Column="1" x:Name="PART_VerticalScrollBar" Style="{StaticResource ThinScrollBar}" Margin="0,32,0,0"
+              <ScrollBar Grid.Column="1" x:Name="PART_VerticalScrollBar" Style="{StaticResource ThinScrollBar}" Margin="0,36,0,0"
                          Orientation="Vertical" Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
                          ViewportSize="{TemplateBinding ViewportHeight}" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
             </Grid>
@@ -158,128 +274,253 @@
 
     <!-- cells -->
     <DataTemplate x:Key="NameCell">
-      <StackPanel Orientation="Horizontal" Margin="6,0,0,0" ToolTip="{Binding Tip}">
-        <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center"
+      <Grid Margin="4,0,0,0" ToolTip="{Binding Tip}" Background="Transparent">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="18"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock x:Name="Chevron" Text="{Binding Chevron}" Style="{StaticResource Glyph}" FontSize="9" HorizontalAlignment="Center"/>
+        <Image x:Name="Icon" Grid.Column="1" Source="{Binding Icon}" Width="18" Height="18" Margin="2,0,8,0" VerticalAlignment="Center"
                RenderOptions.BitmapScalingMode="HighQuality"/>
-        <TextBlock Text="{Binding Name}" Style="{StaticResource Body}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-        <TextBlock Text="{Binding Count}" Style="{StaticResource Subtle}" VerticalAlignment="Center" Margin="6,0,0,0"/>
-      </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock x:Name="Name" Text="{Binding Name}" Style="{StaticResource Body}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+          <Border x:Name="Badge" CornerRadius="8" Background="{DynamicResource SegmentBg}" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Count}" Style="{StaticResource Subtle}" FontSize="11"/>
+          </Border>
+        </StackPanel>
+      </Grid>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding Count}" Value="">
+          <Setter TargetName="Badge" Property="Visibility" Value="Collapsed"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding IsChild}" Value="True">
+          <Setter TargetName="Icon" Property="Visibility" Value="Hidden"/>
+          <Setter TargetName="Name" Property="Foreground" Value="{DynamicResource MenuSubtle}"/>
+          <Setter TargetName="Name" Property="FontFamily" Value="Segoe UI"/>
+          <Setter TargetName="Name" Property="Margin" Value="10,0,0,0"/>
+        </DataTrigger>
+      </DataTemplate.Triggers>
     </DataTemplate>
-    <DataTemplate x:Key="RxCell"><TextBlock Text="{Binding RxText}" Style="{StaticResource Num}" Foreground="{DynamicResource ChartRx}"/></DataTemplate>
-    <DataTemplate x:Key="TxCell"><TextBlock Text="{Binding TxText}" Style="{StaticResource Num}" Foreground="{DynamicResource ChartTx}"/></DataTemplate>
-    <DataTemplate x:Key="TodayRxCell"><TextBlock Text="{Binding TodayRxText}" Style="{StaticResource Num}"/></DataTemplate>
-    <DataTemplate x:Key="TodayTxCell"><TextBlock Text="{Binding TodayTxText}" Style="{StaticResource Num}"/></DataTemplate>
-    <DataTemplate x:Key="ConnCountCell"><TextBlock Text="{Binding ConnText}" Style="{StaticResource Num}"/></DataTemplate>
-    <DataTemplate x:Key="ProcCell">
-      <StackPanel Orientation="Horizontal" Margin="6,0,0,0">
-        <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
-        <TextBlock Text="{Binding Name}" Style="{StaticResource Body}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-      </StackPanel>
+    <!-- rate cells carry a faint bar scaled to the busiest row -->
+    <DataTemplate x:Key="RxCell">
+      <Grid Margin="0,0,6,0">
+        <Border Width="{Binding RxBar}" Height="18" HorizontalAlignment="Right" CornerRadius="4" Background="{DynamicResource ChartRx}" Opacity="0.14"/>
+        <TextBlock Text="{Binding RxText}" Style="{StaticResource Num}" Margin="0,0,5,0" VerticalAlignment="Center" Foreground="{DynamicResource ChartRx}"/>
+      </Grid>
     </DataTemplate>
-    <DataTemplate x:Key="ProtoCell"><TextBlock Text="{Binding Proto}" Style="{StaticResource Body}" Margin="6,0,0,0"/></DataTemplate>
-    <DataTemplate x:Key="LocalCell"><TextBlock Text="{Binding Local}" Style="{StaticResource Body}" FontFamily="Segoe UI" Margin="6,0,0,0" TextTrimming="CharacterEllipsis"/></DataTemplate>
-    <DataTemplate x:Key="RemoteCell"><TextBlock Text="{Binding Remote}" Style="{StaticResource Body}" FontFamily="Segoe UI" Margin="6,0,0,0" TextTrimming="CharacterEllipsis"/></DataTemplate>
-    <DataTemplate x:Key="StateCell"><TextBlock Text="{Binding State}" Style="{StaticResource Subtle}" FontFamily="Segoe UI" Margin="6,0,0,0"/></DataTemplate>
+    <DataTemplate x:Key="TxCell">
+      <Grid Margin="0,0,6,0">
+        <Border Width="{Binding TxBar}" Height="18" HorizontalAlignment="Right" CornerRadius="4" Background="{DynamicResource ChartTx}" Opacity="0.14"/>
+        <TextBlock Text="{Binding TxText}" Style="{StaticResource Num}" Margin="0,0,5,0" VerticalAlignment="Center" Foreground="{DynamicResource ChartTx}"/>
+      </Grid>
+    </DataTemplate>
+    <DataTemplate x:Key="TodayRxCell"><TextBlock Text="{Binding TodayRxText}" Style="{StaticResource Num}" Margin="0,0,11,0" VerticalAlignment="Center"/></DataTemplate>
+    <DataTemplate x:Key="TodayTxCell"><TextBlock Text="{Binding TodayTxText}" Style="{StaticResource Num}" Margin="0,0,11,0" VerticalAlignment="Center"/></DataTemplate>
+    <DataTemplate x:Key="ConnCountCell"><TextBlock Text="{Binding ConnText}" Style="{StaticResource Num}" Margin="0,0,11,0" VerticalAlignment="Center"/></DataTemplate>
+    <DataTemplate x:Key="ProtoCell">
+      <Border x:Name="Pill" CornerRadius="4" Background="{DynamicResource SegmentBg}" Padding="6,1" HorizontalAlignment="Left" Margin="8,0,0,0" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Proto}" Style="{StaticResource Subtle}" FontSize="11" FontFamily="Segoe UI"/>
+      </Border>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding Proto}" Value=""><Setter TargetName="Pill" Property="Visibility" Value="Collapsed"/></DataTrigger>
+      </DataTemplate.Triggers>
+    </DataTemplate>
+    <DataTemplate x:Key="LocalCell"><TextBlock Text="{Binding Local}" Style="{StaticResource Body}" FontFamily="Segoe UI" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/></DataTemplate>
+    <DataTemplate x:Key="RemoteCell"><TextBlock Text="{Binding Remote}" Style="{StaticResource Body}" FontFamily="Segoe UI" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/></DataTemplate>
+    <DataTemplate x:Key="StateCell">
+      <StackPanel Orientation="Horizontal" Margin="8,0,0,0" VerticalAlignment="Center">
+        <Ellipse x:Name="Dot" Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{DynamicResource MenuSubtle}"/>
+        <TextBlock Text="{Binding State}" Style="{StaticResource Subtle}" FontFamily="Segoe UI" VerticalAlignment="Center"/>
+      </StackPanel>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding StateKind}" Value="0"><Setter TargetName="Dot" Property="Fill" Value="{DynamicResource Ok}"/></DataTrigger>
+        <DataTrigger Binding="{Binding StateKind}" Value="1"><Setter TargetName="Dot" Property="Fill" Value="{DynamicResource ChartTx}"/></DataTrigger>
+      </DataTemplate.Triggers>
+    </DataTemplate>
   </Window.Resources>
 
   <Grid>
     <Grid.RowDefinitions>
-      <RowDefinition Height="44"/>
+      <RowDefinition Height="48"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <!-- caption -->
-    <Grid Grid.Row="0" Margin="16,0,6,0">
+    <!-- caption: logo + title, segmented tabs in the middle, filter + window buttons on the right -->
+    <Grid Grid.Row="0" Margin="16,0,8,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <TextBlock Text="应用流量" FontSize="15" FontWeight="SemiBold" Style="{StaticResource Body}" VerticalAlignment="Center"/>
-        <RadioButton x:Name="TabApps" Content="程序" Style="{StaticResource Pill}" IsChecked="True" Margin="18,0,0,0" WindowChrome.IsHitTestVisibleInChrome="True"/>
-        <RadioButton x:Name="TabConns" Content="连接" Style="{StaticResource Pill}" Margin="4,0,0,0" WindowChrome.IsHitTestVisibleInChrome="True"/>
-        <RadioButton x:Name="TabStats" Content="统计" Style="{StaticResource Pill}" Margin="4,0,0,0" WindowChrome.IsHitTestVisibleInChrome="True"/>
+        <Image Source="pack://application:,,,/Assets/logo.png" Width="20" Height="20" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+        <TextBlock Text="应用流量" FontSize="14" FontWeight="SemiBold" Style="{StaticResource Body}" VerticalAlignment="Center" Margin="10,0,0,0"/>
       </StackPanel>
-      <Button x:Name="CloseButton" Content="&#xE8BB;" Style="{StaticResource IconButton}" HorizontalAlignment="Right" VerticalAlignment="Center"
-              WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="关闭"/>
+      <Border Grid.Column="1" CornerRadius="9" Background="{DynamicResource SegmentBg}" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
+        <StackPanel Orientation="Horizontal">
+          <RadioButton x:Name="TabApps" Content="程序" Style="{StaticResource Segment}" IsChecked="True"/>
+          <RadioButton x:Name="TabConns" Content="连接" Style="{StaticResource Segment}"/>
+          <RadioButton x:Name="TabStats" Content="统计" Style="{StaticResource Segment}"/>
+        </StackPanel>
+      </Border>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <TextBox x:Name="FilterBox" Style="{StaticResource FilterBox}" Margin="0,0,10,0" WindowChrome.IsHitTestVisibleInChrome="True"/>
+        <Button x:Name="MinButton" Content="&#xE921;" Style="{StaticResource CaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="最小化"/>
+        <Button x:Name="CloseButton" Content="&#xE8BB;" Style="{StaticResource CloseCaptionButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="关闭"/>
+      </StackPanel>
     </Grid>
 
     <!-- privilege hint -->
-    <Border x:Name="Hint" Grid.Row="1" Margin="16,0,16,8" CornerRadius="6" Background="{DynamicResource MenuHover}" Padding="12,8" Visibility="Collapsed">
+    <Border x:Name="Hint" Grid.Row="1" Margin="16,2,16,10" CornerRadius="8" Background="{DynamicResource AccentSoft}" Padding="12,8" Visibility="Collapsed">
       <Grid>
         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="HintText" Style="{StaticResource Body}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-        <Button x:Name="ElevateButton" Grid.Column="1" Content="以管理员身份重启" Style="{StaticResource FlatButton}" Margin="12,-4,-4,-4"
-                Foreground="{DynamicResource Accent}" VerticalAlignment="Center"/>
+        <TextBlock Text="&#xE946;" Style="{StaticResource Glyph}" FontSize="14" Foreground="{DynamicResource Accent}" Margin="0,0,10,0"/>
+        <TextBlock x:Name="HintText" Grid.Column="1" Style="{StaticResource Body}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+        <Button x:Name="ElevateButton" Grid.Column="2" Content="以管理员身份重启" Style="{StaticResource FlatButton}" Margin="12,-4,-4,-4"
+                Foreground="{DynamicResource Accent}" FontWeight="SemiBold" VerticalAlignment="Center"/>
       </Grid>
     </Border>
 
     <!-- programs -->
-    <ListView x:Name="AppList" Grid.Row="2" Margin="10,0,8,0">
-      <ListView.View>
-        <GridView ColumnHeaderContainerStyle="{StaticResource ColHeader}">
-          <GridViewColumn x:Name="NameCol" Header="程序" Width="260" CellTemplate="{StaticResource NameCell}"/>
-          <GridViewColumn Header="下载" Width="104" CellTemplate="{StaticResource RxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
-          <GridViewColumn Header="上传" Width="104" CellTemplate="{StaticResource TxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
-          <GridViewColumn Header="今日下载" Width="104" CellTemplate="{StaticResource TodayRxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
-          <GridViewColumn Header="今日上传" Width="104" CellTemplate="{StaticResource TodayTxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
-          <GridViewColumn Header="连接" Width="64" CellTemplate="{StaticResource ConnCountCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
-        </GridView>
-      </ListView.View>
-    </ListView>
+    <Border x:Name="AppCard" Grid.Row="2" Style="{StaticResource Card}" Margin="16,2,16,0" Padding="6,2,4,4">
+      <Grid>
+        <ListView x:Name="AppList">
+          <ListView.View>
+            <GridView ColumnHeaderContainerStyle="{StaticResource ColHeader}">
+              <GridViewColumn x:Name="NameCol" Header="程序" Width="260" CellTemplate="{StaticResource NameCell}"/>
+              <GridViewColumn Header="下载" Width="104" CellTemplate="{StaticResource RxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
+              <GridViewColumn Header="上传" Width="104" CellTemplate="{StaticResource TxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
+              <GridViewColumn Header="今日下载" Width="104" CellTemplate="{StaticResource TodayRxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
+              <GridViewColumn Header="今日上传" Width="104" CellTemplate="{StaticResource TodayTxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
+              <GridViewColumn Header="连接" Width="64" CellTemplate="{StaticResource ConnCountCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
+            </GridView>
+          </ListView.View>
+        </ListView>
+        <StackPanel x:Name="AppEmpty" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
+          <TextBlock Text="&#xE774;" Style="{StaticResource Glyph}" FontSize="28" HorizontalAlignment="Center" Opacity="0.6"/>
+          <TextBlock x:Name="AppEmptyText" Text="还没有程序产生网络活动" Style="{StaticResource Subtle}" Margin="0,10,0,0" HorizontalAlignment="Center"/>
+        </StackPanel>
+      </Grid>
+    </Border>
 
     <!-- connections -->
-    <ListView x:Name="ConnList" Grid.Row="2" Margin="10,0,8,0" Visibility="Collapsed">
-      <ListView.View>
-        <GridView ColumnHeaderContainerStyle="{StaticResource ColHeader}">
-          <GridViewColumn x:Name="ProcCol" Header="程序" Width="160" CellTemplate="{StaticResource ProcCell}"/>
-          <GridViewColumn Header="协议" Width="54" CellTemplate="{StaticResource ProtoCell}"/>
-          <GridViewColumn Header="本地地址" Width="164" CellTemplate="{StaticResource LocalCell}"/>
-          <GridViewColumn Header="远程地址" Width="176" CellTemplate="{StaticResource RemoteCell}"/>
-          <GridViewColumn Header="状态" Width="92" CellTemplate="{StaticResource StateCell}"/>
-          <GridViewColumn Header="下载" Width="84" CellTemplate="{StaticResource RxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
-          <GridViewColumn Header="上传" Width="84" CellTemplate="{StaticResource TxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
-        </GridView>
-      </ListView.View>
-    </ListView>
+    <Border x:Name="ConnCard" Grid.Row="2" Style="{StaticResource Card}" Margin="16,2,16,0" Padding="6,2,4,4" Visibility="Collapsed">
+      <Grid>
+        <ListView x:Name="ConnList">
+          <ListView.View>
+            <GridView ColumnHeaderContainerStyle="{StaticResource ColHeader}">
+              <GridViewColumn x:Name="ProcCol" Header="程序" Width="160" CellTemplate="{StaticResource NameCell}"/>
+              <GridViewColumn Header="协议" Width="60" CellTemplate="{StaticResource ProtoCell}"/>
+              <GridViewColumn Header="本地地址" Width="156" CellTemplate="{StaticResource LocalCell}"/>
+              <GridViewColumn Header="远程地址" Width="168" CellTemplate="{StaticResource RemoteCell}"/>
+              <GridViewColumn Header="状态" Width="112" CellTemplate="{StaticResource StateCell}"/>
+              <GridViewColumn Header="下载" Width="88" CellTemplate="{StaticResource RxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
+              <GridViewColumn Header="上传" Width="88" CellTemplate="{StaticResource TxCell}" HeaderContainerStyle="{StaticResource ColHeaderRight}"/>
+            </GridView>
+          </ListView.View>
+        </ListView>
+        <StackPanel x:Name="ConnEmpty" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
+          <TextBlock Text="&#xE968;" Style="{StaticResource Glyph}" FontSize="28" HorizontalAlignment="Center" Opacity="0.6"/>
+          <TextBlock x:Name="ConnEmptyText" Text="没有匹配的连接" Style="{StaticResource Subtle}" Margin="0,10,0,0" HorizontalAlignment="Center"/>
+        </StackPanel>
+      </Grid>
+    </Border>
 
     <!-- statistics -->
-    <ScrollViewer x:Name="StatsView" Grid.Row="2" Margin="16,0,8,0" Padding="0,0,8,0" Style="{StaticResource ThinScrollViewer}" Visibility="Collapsed">
+    <ScrollViewer x:Name="StatsView" Grid.Row="2" Margin="16,2,8,0" Padding="0,0,8,0" Style="{StaticResource ThinScrollViewer}" Visibility="Collapsed">
       <StackPanel>
-        <Grid Margin="0,2,0,0">
+        <Grid Margin="0,2,0,12">
           <StackPanel Orientation="Horizontal">
             <RadioButton x:Name="RangeDay" Content="今日" Style="{StaticResource Pill}" IsChecked="True" GroupName="range"/>
             <RadioButton x:Name="RangeWeek" Content="7 天" Style="{StaticResource Pill}" Margin="4,0,0,0" GroupName="range"/>
             <RadioButton x:Name="RangeMonth" Content="30 天" Style="{StaticResource Pill}" Margin="4,0,0,0" GroupName="range"/>
           </StackPanel>
-          <TextBlock x:Name="StatsSummary" Style="{StaticResource Body}" FontFamily="Segoe UI" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+          <TextBlock x:Name="StatsFocusText" Style="{StaticResource Subtle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
         </Grid>
 
-        <TextBlock x:Name="StatsEmpty" Style="{StaticResource Subtle}" Margin="0,40,0,0" HorizontalAlignment="Center" Visibility="Collapsed"
-                   Text="这段时间还没有按程序的流量记录。按程序统计只在管理员模式下进行。"/>
-
-        <StackPanel x:Name="DaySection">
-          <Grid Margin="0,18,0,6">
-            <TextBlock x:Name="DayTitle" Text="每日流量" Style="{StaticResource Subtle}"/>
-            <TextBlock x:Name="DayMax" Style="{StaticResource Subtle}" HorizontalAlignment="Right"/>
-          </Grid>
-          <Canvas x:Name="DayChart" Height="150" ClipToBounds="True"/>
-        </StackPanel>
-        <Grid Margin="0,18,0,6">
-          <TextBlock Text="程序排行" Style="{StaticResource Subtle}"/>
-          <TextBlock x:Name="RankHint" Text="点击程序，上方只看它的每日流量" Style="{StaticResource Subtle}" HorizontalAlignment="Right"/>
+        <!-- summary cards -->
+        <Grid x:Name="StatsCards">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <Border Style="{StaticResource Card}" Padding="16,12">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal">
+                <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource ChartRx}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBlock Text="总下载" Style="{StaticResource Subtle}"/>
+              </StackPanel>
+              <TextBlock x:Name="StatRx" Text="0 B" FontSize="22" FontFamily="Segoe UI" FontWeight="SemiBold" Style="{StaticResource Body}" Margin="0,4,0,0"/>
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="2" Style="{StaticResource Card}" Padding="16,12">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal">
+                <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource ChartTx}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBlock Text="总上传" Style="{StaticResource Subtle}"/>
+              </StackPanel>
+              <TextBlock x:Name="StatTx" Text="0 B" FontSize="22" FontFamily="Segoe UI" FontWeight="SemiBold" Style="{StaticResource Body}" Margin="0,4,0,0"/>
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="4" Style="{StaticResource Card}" Padding="16,12">
+            <StackPanel>
+              <TextBlock Text="程序" Style="{StaticResource Subtle}"/>
+              <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                <TextBlock x:Name="StatApps" Text="0" FontSize="22" FontFamily="Segoe UI" FontWeight="SemiBold" Style="{StaticResource Body}"/>
+                <TextBlock Text="个" Style="{StaticResource Subtle}" VerticalAlignment="Bottom" Margin="5,0,0,4"/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
         </Grid>
-        <StackPanel x:Name="RankList"/>
 
-        <Border Height="8"/>
+        <Border x:Name="StatsEmptyCard" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="16,40" Visibility="Collapsed">
+          <StackPanel>
+            <TextBlock Text="&#xE9D9;" Style="{StaticResource Glyph}" FontSize="28" HorizontalAlignment="Center" Opacity="0.6"/>
+            <TextBlock Style="{StaticResource Subtle}" Margin="0,10,0,0" HorizontalAlignment="Center" TextAlignment="Center"
+                       Text="这段时间还没有按程序的流量记录。&#10;按程序统计只在管理员模式下进行。"/>
+          </StackPanel>
+        </Border>
+
+        <Border x:Name="DaySection" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="16,12,16,8">
+          <StackPanel>
+            <Grid Margin="0,0,0,8">
+              <TextBlock x:Name="DayTitle" Text="每日流量" Style="{StaticResource Body}" FontWeight="SemiBold"/>
+              <TextBlock x:Name="DayMax" Style="{StaticResource Subtle}" HorizontalAlignment="Right"/>
+            </Grid>
+            <Canvas x:Name="DayChart" Height="150" ClipToBounds="True"/>
+          </StackPanel>
+        </Border>
+
+        <Border x:Name="RankSection" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="16,12,16,10">
+          <StackPanel>
+            <Grid Margin="0,0,0,6">
+              <TextBlock Text="程序排行" Style="{StaticResource Body}" FontWeight="SemiBold"/>
+              <TextBlock x:Name="RankHint" Text="点击程序，上方只看它的每日流量" Style="{StaticResource Subtle}" HorizontalAlignment="Right"/>
+            </Grid>
+            <StackPanel x:Name="RankList"/>
+          </StackPanel>
+        </Border>
+
+        <Border Height="12"/>
       </StackPanel>
     </ScrollViewer>
 
     <!-- footer -->
-    <Grid Grid.Row="3" Margin="16,6,16,10">
+    <Grid Grid.Row="3" Margin="16,8,16,10">
       <TextBlock x:Name="Summary" Style="{StaticResource Subtle}" VerticalAlignment="Center"/>
-      <ToggleButton x:Name="ActiveOnly" Content="仅显示活动连接" Style="{StaticResource Pill}" IsChecked="True" HorizontalAlignment="Right" Visibility="Collapsed"/>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <ToggleButton x:Name="ActiveOnly" Content="仅活动连接" Style="{StaticResource Pill}" IsChecked="True" Visibility="Collapsed"/>
+      </StackPanel>
     </Grid>
   </Grid>
 </Window>

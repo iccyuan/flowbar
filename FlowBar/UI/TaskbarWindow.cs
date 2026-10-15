@@ -532,6 +532,7 @@ public sealed class TaskbarWindow : Window
     public void OpenApps() => OpenApps(connections: false);
     private int _openStats = -1;
     public void OpenStats(int days = 0) { _openStats = days; OpenApps(connections: false); }
+    public void OpenAppsExpanded() { OpenApps(connections: false); _apps?.ExpandAll(); }
 
     public void OpenApps(bool connections)
     {
