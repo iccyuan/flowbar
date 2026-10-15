@@ -21,33 +21,47 @@ public static class Theme
     }
 
     /// <summary>
-    /// Average perceived luminance (0..1) of what is on screen inside <paramref name="screenRect"/>.
-    /// Used to decide whether the widget text should be dark or light on a custom-coloured or
-    /// translucent taskbar. Samples a small grid, so it is cheap enough to call on theme changes.
+    /// Perceived luminance (0..1) of the taskbar around <paramref name="widget"/>: the strips just
+    /// before and after it along the bar, so our own text is never measured and nothing has to be
+    /// hidden first (hiding and reading the screen back in the same frame returned stale pixels).
+    /// Median of a small grid, so tray icons and task buttons in the strips do not tip the result.
     /// </summary>
-    public static double SampleLuminance(RECT screenRect)
+    public static double SampleLuminance(RECT widget, RECT tray, bool horizontal)
     {
-        if (screenRect.Width <= 0 || screenRect.Height <= 0) return SystemUsesLight() ? 0.9 : 0.1;
+        if (tray.Width <= 0 || tray.Height <= 0) return SystemUsesLight() ? 0.9 : 0.1;
         IntPtr dc = Native.GetDC(IntPtr.Zero);
         if (dc == IntPtr.Zero) return SystemUsesLight() ? 0.9 : 0.1;
+        var samples = new List<double>(48);
         try
         {
-            double sum = 0; int n = 0;
-            const int cols = 8, rows = 3;
-            for (int r = 0; r < rows; r++)
-                for (int c = 0; c < cols; c++)
-                {
-                    int x = screenRect.Left + (int)((c + 0.5) * screenRect.Width / cols);
-                    int y = screenRect.Top + (int)((r + 0.5) * screenRect.Height / rows);
-                    uint px = Native.GetPixel(dc, x, y);
-                    if (px == 0xFFFFFFFF) continue; // CLR_INVALID
-                    double rr = (px & 0xFF) / 255.0, gg = ((px >> 8) & 0xFF) / 255.0, bb = ((px >> 16) & 0xFF) / 255.0;
-                    sum += 0.2126 * rr + 0.7152 * gg + 0.0722 * bb;
-                    n++;
-                }
-            return n == 0 ? (SystemUsesLight() ? 0.9 : 0.1) : sum / n;
+            const int strip = 72, gap = 4, cols = 6, rows = 3;
+            // (lo, hi) along the bar axis for the two strips; the cross axis spans the widget.
+            int a0 = horizontal ? widget.Left : widget.Top, a1 = horizontal ? widget.Right : widget.Bottom;
+            int t0 = horizontal ? tray.Left : tray.Top, t1 = horizontal ? tray.Right : tray.Bottom;
+            int c0 = horizontal ? widget.Top : widget.Left, c1 = horizontal ? widget.Bottom : widget.Right;
+            if (c1 - c0 <= 0) { c0 = horizontal ? tray.Top : tray.Left; c1 = horizontal ? tray.Bottom : tray.Right; }
+            Strip(Math.Max(t0, a0 - gap - strip), a0 - gap);
+            Strip(a1 + gap, Math.Min(t1, a1 + gap + strip));
+
+            void Strip(int lo, int hi)
+            {
+                if (hi - lo < 8) return;
+                for (int r = 0; r < rows; r++)
+                    for (int c = 0; c < cols; c++)
+                    {
+                        int along = lo + (int)((c + 0.5) * (hi - lo) / cols);
+                        int cross = c0 + (int)((r + 0.5) * (c1 - c0) / rows);
+                        uint px = Native.GetPixel(dc, horizontal ? along : cross, horizontal ? cross : along);
+                        if (px == 0xFFFFFFFF) continue; // CLR_INVALID
+                        double rr = (px & 0xFF) / 255.0, gg = ((px >> 8) & 0xFF) / 255.0, bb = ((px >> 16) & 0xFF) / 255.0;
+                        samples.Add(0.2126 * rr + 0.7152 * gg + 0.0722 * bb);
+                    }
+            }
         }
         finally { Native.ReleaseDC(IntPtr.Zero, dc); }
+        if (samples.Count == 0) return SystemUsesLight() ? 0.9 : 0.1;
+        samples.Sort();
+        return samples[samples.Count / 2];
     }
 
     public static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex)!;

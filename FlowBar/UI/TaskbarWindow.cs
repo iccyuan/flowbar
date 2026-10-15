@@ -31,6 +31,7 @@ public sealed class TaskbarWindow : Window
     private readonly SolidColorBrush _fgUp = new(Colors.White);
     private readonly SolidColorBrush _fgDown = new(Colors.White);
     private bool _darkBackdrop = true;
+    private bool _themeLogged;
     private static readonly SolidColorBrush HitTestBrush = new(Color.FromArgb(1, 0, 0, 0));
     private readonly Grid _root = new();
     private readonly Border _pill = new();
@@ -364,13 +365,12 @@ public sealed class TaskbarWindow : Window
         else if (!_embedded) _darkBackdrop = !Theme.AppsUseLight();
         else
         {
-            // Sample the taskbar underneath us; hide for one frame so our own text isn't measured.
-            var rect = _host.PlacedScreenRect;
-            bool wasVisible = Native.IsWindowVisible(_hwnd);
-            if (wasVisible) Native.ShowWindow(_hwnd, Native.SW_HIDE);
-            double lum = Theme.SampleLuminance(rect);
-            if (wasVisible) Native.ShowWindow(_hwnd, Native.SW_SHOWNA);
-            _darkBackdrop = lum <= 0.5;
+            // Sample the taskbar on either side of us (never our own pixels).
+            double lum = Theme.SampleLuminance(_host.PlacedScreenRect, _host.TrayRect, _host.IsHorizontal);
+            bool dark = lum <= 0.5;
+            if (dark != _darkBackdrop || !_themeLogged) Log.Write($"taskbar luminance {lum:F2} -> {(dark ? "light" : "dark")} text");
+            _themeLogged = true;
+            _darkBackdrop = dark;
         }
         var (up, down) = Theme.SchemeColors(_cfg.ColorScheme, _darkBackdrop);
         _fgUp.Color = up;
