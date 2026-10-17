@@ -45,6 +45,11 @@ public sealed class TaskbarWindow : Window
     private RECT _dragRect;
     private bool _hiddenForFullscreen;
     private readonly Action<Snapshot> _onSampled;
+    // After a display / DPI change Explorer re-lays the taskbar out over the next second or so, and
+    // WPF parks a child HwndSource at (0,0) when its DPI changes; poll quickly until things settle.
+    private readonly DispatcherTimer _settle = new() { Interval = TimeSpan.FromMilliseconds(200) };
+    private int _settleLeft;
+    private uint _lastDpi;
 
     /// <summary>
     /// Raised (once) when our HWND has been destroyed under us. That happens when Explorer restarts:
@@ -105,6 +110,7 @@ public sealed class TaskbarWindow : Window
         _onSampled = snap => Dispatcher.BeginInvoke(() => OnSample(snap));
         _sampler.Sampled += _onSampled;
         _tick.Tick += (_, _) => Tick();
+        _settle.Tick += (_, _) => SettleTick();
     }
 
     // ---- lifecycle -------------------------------------------------------
@@ -124,6 +130,7 @@ public sealed class TaskbarWindow : Window
     public void Shutdown()
     {
         _tick.Stop();
+        _settle.Stop();
         _sampler.Sampled -= _onSampled;
         // An open context menu keeps the dispatcher alive after the window is gone, so the process
         // would linger (and release the single-instance mutex) without ever exiting.
@@ -145,7 +152,40 @@ public sealed class TaskbarWindow : Window
             handled = true;
             return new IntPtr(Native.MA_NOACTIVATE);
         }
+        // Child windows never get WM_DISPLAYCHANGE / WM_DPICHANGED; this is the one hint we do get.
+        // WPF handles it first (and moves us to 0,0 while doing so), so re-place after it is done.
+        if (msg == Native.WM_DPICHANGED_AFTERPARENT) Dispatcher.BeginInvoke(OnDisplayChanged);
         return IntPtr.Zero;
+    }
+
+    /// <summary>
+    /// Display settings or DPI changed. The taskbar is usually not in its final place yet when this
+    /// fires, so re-check a few times over the next couple of seconds instead of trusting one look.
+    /// </summary>
+    public void OnDisplayChanged()
+    {
+        _settleLeft = 10;
+        SettleTick();
+        _settle.Start();
+    }
+
+    private void SettleTick()
+    {
+        if (_dead || !IsAlive) { _settle.Stop(); return; }
+        uint dpi = Native.DpiOf(_hwnd);
+        bool dpiChanged = dpi != _lastDpi;
+        _lastDpi = dpi;
+        if (_embedded)
+        {
+            // Maintain refreshes the taskbar rect and puts us back wherever we have drifted to.
+            if (_host.Maintain(_lengthPx) || dpiChanged) Relayout();
+        }
+        else
+        {
+            if (dpiChanged) Relayout();
+            if (!_hiddenForFullscreen) PlaceFloating();
+        }
+        if (--_settleLeft <= 0) _settle.Stop();
     }
 
     private double Scale => Native.DpiOf(_hwnd) / 96.0;
@@ -201,7 +241,6 @@ public sealed class TaskbarWindow : Window
     {
         double s = Scale;
         int w = (int)Math.Round(Width * s), h = (int)Math.Round(Height * s);
-        var tray = _host.TrayRect;
         int x = _cfg.FloatX, y = _cfg.FloatY;
         if (x < 0 || y < 0)
         {
@@ -210,6 +249,15 @@ public sealed class TaskbarWindow : Window
             var mi = Native.MonitorInfoFor(ref probe);
             x = mi.rcWork.Right - w - 24;
             y = mi.rcWork.Bottom - h - 24;
+        }
+        else
+        {
+            // A saved spot can be off-screen after a resolution change or a monitor going away:
+            // pull it back inside the work area of the nearest monitor.
+            var want = new RECT { Left = x, Top = y, Right = x + w, Bottom = y + h };
+            var work = Native.MonitorInfoFor(ref want).rcWork;
+            x = Math.Clamp(x, work.Left, Math.Max(work.Left, work.Right - w));
+            y = Math.Clamp(y, work.Top, Math.Max(work.Top, work.Bottom - h));
         }
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, w, h, Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
     }
@@ -220,9 +268,11 @@ public sealed class TaskbarWindow : Window
     public void Relayout()
     {
         double s = Scale;
+        _lastDpi = Native.DpiOf(_hwnd);
         double thickDip;
         if (_embedded)
         {
+            _host.RefreshGeometry();
             _thickPx = _host.Thickness;
             thickDip = _thickPx / s;
         }

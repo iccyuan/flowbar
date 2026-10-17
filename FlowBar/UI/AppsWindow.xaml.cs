@@ -300,8 +300,8 @@ public partial class AppsWindow : Window
             var row = _rankRows[name];
             row.Rx.Width = new GridLength(t.rx, GridUnitType.Star);
             row.Tx.Width = new GridLength(t.tx, GridUnitType.Star);
-            row.Rx.MinWidth = t.rx > 0 ? 2 : 0; // a sliver still shows there was something
-            row.Tx.MinWidth = t.tx > 0 ? 2 : 0;
+            row.Rx.MinWidth = t.rx > 0 ? 6 : 0; // a dot still shows there was something
+            row.Tx.MinWidth = t.tx > 0 ? 6 : 0;
             row.Rest.Width = new GridLength(Math.Max(0, (double)max - t.rx - t.tx), GridUnitType.Star);
             row.RxText.Text = Formatting.Bytes(t.rx);
             row.TxText.Text = Formatting.Bytes(t.tx);
@@ -330,14 +330,20 @@ public partial class AppsWindow : Window
         Grid.SetColumn(label, 1);
         grid.Children.Add(label);
 
+        // A thin track the full width of the column; download fills from the left, upload continues
+        // after it. Both ends are rounded and the upload piece overlaps the download end by its radius
+        // so the seam is invisible and a lone download still ends in a round cap.
         var row = new RankRow { Rx = new ColumnDefinition(), Tx = new ColumnDefinition(), Rest = new ColumnDefinition() };
-        var bar = new Grid { Height = 10, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        var bar = new Grid { Height = 6, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
         bar.ColumnDefinitions.Add(row.Rx);
         bar.ColumnDefinitions.Add(row.Tx);
         bar.ColumnDefinitions.Add(row.Rest);
-        var rxBar = new Border { Background = (Brush)FindResource("ChartRx"), CornerRadius = new CornerRadius(3, 0, 0, 3) };
-        var txBar = new Border { Background = (Brush)FindResource("ChartTx"), CornerRadius = new CornerRadius(0, 3, 3, 0) };
+        var track = new Border { Background = (Brush)FindResource("SegmentBg"), CornerRadius = new CornerRadius(3) };
+        Grid.SetColumnSpan(track, 3);
+        var rxBar = new Border { Background = Gradient("ChartRx", "ChartRxEnd"), CornerRadius = new CornerRadius(3) };
+        var txBar = new Border { Background = Gradient("ChartTx", "ChartTxEnd"), CornerRadius = new CornerRadius(3), Margin = new Thickness(-3, 0, 0, 0) };
         Grid.SetColumn(txBar, 1);
+        bar.Children.Add(track);
         bar.Children.Add(rxBar);
         bar.Children.Add(txBar);
         Grid.SetColumn(bar, 2);
@@ -369,6 +375,16 @@ public partial class AppsWindow : Window
         return row;
     }
 
+    /// <summary>Horizontal (or vertical) gradient between two theme colours.</summary>
+    private LinearGradientBrush Gradient(string from, string to, bool vertical = false)
+    {
+        var a = ((SolidColorBrush)FindResource(from)).Color;
+        var b = ((SolidColorBrush)FindResource(to)).Color;
+        var br = new LinearGradientBrush(a, b, vertical ? new Point(0, 1) : new Point(0, 0), vertical ? new Point(0, 0) : new Point(1, 0));
+        br.Freeze();
+        return br;
+    }
+
     /// <summary>Stacked bars, one per day: download at the bottom, upload on top.</summary>
     private void DrawDays()
     {
@@ -397,9 +413,10 @@ public partial class AppsWindow : Window
 
         int n = _perDay.Count;
         double slot = w / n;
-        double barW = Math.Clamp(slot * 0.62, 6, 30);
-        var rxBrush = (Brush)FindResource("ChartRx");
-        var txBrush = (Brush)FindResource("ChartTx");
+        double barW = Math.Clamp(slot * 0.55, 6, 22);
+        double radius = Math.Min(4, barW / 2);
+        var rxBrush = Gradient("ChartRx", "ChartRxEnd", vertical: true);
+        var txBrush = Gradient("ChartTx", "ChartTxEnd", vertical: true);
         var subtle = (Style)FindResource("Subtle");
         int labelEvery = n <= 7 ? 1 : n <= 14 ? 2 : 5;
         for (int i = 0; i < n; i++)
@@ -416,12 +433,14 @@ public partial class AppsWindow : Window
             }
             else
             {
-                var rxBar = new Border { Width = barW, Height = Math.Max(1, rxH), Background = rxBrush, CornerRadius = txH < 1 ? new CornerRadius(3, 3, 0, 0) : new CornerRadius(0), ToolTip = tip };
+                // Download bar with a rounded top; the upload piece sits on it, overlapping by the
+                // radius so the two read as one rounded column.
+                var rxBar = new Border { Width = barW, Height = Math.Max(2, rxH), Background = rxBrush, CornerRadius = new CornerRadius(radius, radius, 0, 0), ToolTip = tip };
                 Canvas.SetLeft(rxBar, x); Canvas.SetTop(rxBar, h - labelH - rxBar.Height);
                 DayChart.Children.Add(rxBar);
                 if (txH >= 1)
                 {
-                    var txBar = new Border { Width = barW, Height = txH, Background = txBrush, CornerRadius = new CornerRadius(3, 3, 0, 0), ToolTip = tip };
+                    var txBar = new Border { Width = barW, Height = txH + radius, Background = txBrush, CornerRadius = new CornerRadius(radius, radius, 0, 0), ToolTip = tip };
                     Canvas.SetLeft(txBar, x); Canvas.SetTop(txBar, h - labelH - rxBar.Height - txH);
                     DayChart.Children.Add(txBar);
                 }

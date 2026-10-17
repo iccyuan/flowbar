@@ -57,6 +57,7 @@ internal static partial class Native
     public const int SW_SHOWNA = 8;
 
     public const int WM_MOUSEACTIVATE = 0x0021;
+    public const int WM_DPICHANGED_AFTERPARENT = 0x02E3;
     public const int MA_NOACTIVATE = 3;
 
     public const uint MONITOR_DEFAULTTONEAREST = 2;

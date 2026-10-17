@@ -101,7 +101,7 @@ public partial class App : Application
         _themeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
         _themeDebounce.Tick += (_, _) => { _themeDebounce.Stop(); ApplyTheme(); _window?.RefreshTheme(); };
         SystemEvents.UserPreferenceChanged += (_, _) => Dispatcher.BeginInvoke(() => { _themeDebounce.Stop(); _themeDebounce.Start(); });
-        SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.BeginInvoke(() => _window?.Relayout());
+        SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.BeginInvoke(() => _window?.OnDisplayChanged());
 
         // `FlowBar.exe --exit` from a second process asks us to quit cleanly (restores the taskbar).
         _exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ExitEventName + suffix);

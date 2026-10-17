@@ -121,17 +121,25 @@ public sealed class TaskbarHost
             force = true;
         }
 
-        Native.GetWindowRect(_tray, out var tr);
-        bool geometryChanged = !tr.Same(_trayRect);
-        if (geometryChanged)
-        {
-            _trayRect = tr;
-            _horizontal = tr.Width >= tr.Height;
-        }
-
+        bool geometryChanged = RefreshGeometry();
         Place(lengthPx, force || geometryChanged);
         Raise();
         return geometryChanged;
+    }
+
+    /// <summary>
+    /// Re-reads the taskbar rect. Explorer re-lays the bar out some time after a display change,
+    /// so callers that are about to size themselves from <see cref="Thickness"/> ask for fresh numbers
+    /// first. Returns true when the rect changed since the last look.
+    /// </summary>
+    public bool RefreshGeometry()
+    {
+        if (!TaskbarFound) return false;
+        Native.GetWindowRect(_tray, out var tr);
+        if (tr.Same(_trayRect)) return false;
+        _trayRect = tr;
+        _horizontal = tr.Width >= tr.Height;
+        return true;
     }
 
     /// <summary>
@@ -177,7 +185,9 @@ public sealed class TaskbarHost
             ? new RECT { Left = pos, Top = 0, Right = pos + len, Bottom = thick }
             : new RECT { Left = 0, Top = pos, Right = thick, Bottom = pos + len };
 
-        if (!force && target.Same(_lastPlaced) && Native.IsWindowVisible(_hwnd)) return;
+        // Compare with where the window really is, not where we last put it: WPF moves a child
+        // HwndSource to (0,0) when its DPI changes, and Explorer may shuffle children on relayout.
+        if (!force && target.Same(_lastPlaced) && target.Same(Native.RectIn(_hwnd, _tray)) && Native.IsWindowVisible(_hwnd)) return;
         _lastPlaced = target;
         Native.SetWindowPos(_hwnd, Native.HWND_TOP, target.Left, target.Top, target.Width, target.Height,
             Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
