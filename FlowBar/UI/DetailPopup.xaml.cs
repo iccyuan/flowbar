@@ -3,7 +3,6 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Effects;
 using FlowBar.Core;
 
 namespace FlowBar.UI;
@@ -137,22 +136,17 @@ public partial class DetailPopup : Window
         for (int i = from; i < n; i++) max = Math.Max(max, Math.Max(_rx[i], _tx[i]));
         const double top = 18; // headroom so the labels along the top never sit on a spike
 
-        var rx = new List<Point>(count);
-        var tx = new List<Point>(count);
+        // Light Gaussian smoothing turns per-second jitter into a calm curve without flattening short spikes.
         double step = w / (window - 1);
         double x0 = w - (count - 1) * step;
-        for (int i = 0; i < count; i++)
-        {
-            double x = x0 + i * step;
-            rx.Add(new Point(x, h - 2 - (h - 2 - top) * _rx[from + i] / max));
-            tx.Add(new Point(x, h - 2 - (h - 2 - top) * _tx[from + i] / max));
-        }
-        RxLine.Data = Smooth(rx, h, closed: false);
-        RxFill.Data = Smooth(rx, h, closed: true);
-        TxLine.Data = Smooth(tx, h, closed: false);
-        TxFill.Data = Smooth(tx, h, closed: true);
+        var rx = Points(Gauss(_rx, from, count), x0, step, h, top, max);
+        var tx = Points(Gauss(_tx, from, count), x0, step, h, top, max);
+        RxLine.Data = Curve(rx, h, closed: false);
+        RxFill.Data = Curve(rx, h, closed: true);
+        TxLine.Data = Curve(tx, h, closed: false);
+        TxFill.Data = Curve(tx, h, closed: true);
 
-        // Colours follow the taskbar text scheme (see Theme.ChartColors); lines glow and fade to the baseline.
+        // Colours follow the taskbar text scheme (see Theme.ChartColors); thin lines over a fade to the baseline.
         bool light = Theme.AppsUseLight();
         Color rxA = ((SolidColorBrush)FindResource("ChartRx")).Color, rxB = ((SolidColorBrush)FindResource("ChartRxEnd")).Color;
         Color txA = ((SolidColorBrush)FindResource("ChartTx")).Color, txB = ((SolidColorBrush)FindResource("ChartTxEnd")).Color;
@@ -164,28 +158,79 @@ public partial class DetailPopup : Window
         ChartSpan.Text = span >= 60 ? $"最近 {span / 60} 分钟" : $"最近 {span} 秒";
     }
 
-    /// <summary>Catmull-Rom spline through the samples, optionally closed down to the baseline.</summary>
-    private static Geometry Smooth(List<Point> pts, double baseline, bool closed)
+    /// <summary>Gaussian-smoothed copy of <paramref name="v"/>[from..from+count); the kernel is cut off at the ends.</summary>
+    private static double[] Gauss(double[] v, int from, int count)
+    {
+        const double sigma = 1.0;
+        const int r = 3;
+        var o = new double[count];
+        for (int i = 0; i < count; i++)
+        {
+            double sum = 0, weight = 0;
+            for (int j = Math.Max(0, i - r); j <= Math.Min(count - 1, i + r); j++)
+            {
+                double k = Math.Exp(-(j - i) * (j - i) / (2 * sigma * sigma));
+                sum += v[from + j] * k; weight += k;
+            }
+            o[i] = sum / weight;
+        }
+        return o;
+    }
+
+    private static List<Point> Points(double[] v, double x0, double step, double h, double top, double max)
+    {
+        var pts = new List<Point>(v.Length);
+        for (int i = 0; i < v.Length; i++) pts.Add(new Point(x0 + i * step, h - 2 - (h - 2 - top) * v[i] / max));
+        return pts;
+    }
+
+    /// <summary>Smooth curve through the samples, optionally closed down to the baseline.</summary>
+    private static Geometry Curve(List<Point> pts, double baseline, bool closed)
     {
         if (pts.Count < 2) return Geometry.Empty;
         var fig = new PathFigure { StartPoint = pts[0], IsClosed = false, IsFilled = closed };
-        for (int i = 0; i < pts.Count - 1; i++)
-        {
-            Point p0 = pts[Math.Max(i - 1, 0)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.Min(i + 2, pts.Count - 1)];
-            var c1 = new Point(p1.X + (p2.X - p0.X) / 6, p1.Y + (p2.Y - p0.Y) / 6);
-            var c2 = new Point(p2.X - (p3.X - p1.X) / 6, p2.Y - (p3.Y - p1.Y) / 6);
-            fig.Segments.Add(new BezierSegment(c1, c2, p2, true));
-        }
+        Monotone(fig, pts);
         if (closed)
         {
             fig.Segments.Add(new LineSegment(new Point(pts[^1].X, baseline), false));
             fig.Segments.Add(new LineSegment(new Point(pts[0].X, baseline), false));
             fig.IsClosed = true;
         }
+        return Freeze(fig);
+    }
+
+    private static Geometry Freeze(PathFigure fig)
+    {
         var g = new PathGeometry();
         g.Figures.Add(fig);
         g.Freeze();
         return g;
+    }
+
+    /// <summary>
+    /// Appends a monotone cubic (PCHIP) curve through <paramref name="pts"/>: smooth like a spline but it never
+    /// overshoots between samples, so the curve never dips below the baseline next to a spike.
+    /// </summary>
+    private static void Monotone(PathFigure fig, List<Point> pts)
+    {
+        int n = pts.Count;
+        var d = new double[n - 1];
+        for (int i = 0; i < n - 1; i++) d[i] = (pts[i + 1].Y - pts[i].Y) / (pts[i + 1].X - pts[i].X);
+        var m = new double[n];
+        m[0] = d[0]; m[n - 1] = d[n - 2];
+        for (int i = 1; i < n - 1; i++)
+        {
+            if (d[i - 1] * d[i] <= 0) { m[i] = 0; continue; }
+            double h0 = pts[i].X - pts[i - 1].X, h1 = pts[i + 1].X - pts[i].X;
+            m[i] = 3 * (h0 + h1) / ((2 * h1 + h0) / d[i - 1] + (h1 + 2 * h0) / d[i]);
+        }
+        for (int i = 0; i < n - 1; i++)
+        {
+            double dx = (pts[i + 1].X - pts[i].X) / 3;
+            var c1 = new Point(pts[i].X + dx, pts[i].Y + m[i] * dx);
+            var c2 = new Point(pts[i + 1].X - dx, pts[i + 1].Y - m[i + 1] * dx);
+            fig.Segments.Add(new BezierSegment(c1, c2, pts[i + 1], true));
+        }
     }
 
     private static void Style(System.Windows.Shapes.Path line, System.Windows.Shapes.Path fill, System.Windows.Shapes.Ellipse dot,
@@ -194,10 +239,9 @@ public partial class DetailPopup : Window
         var stroke = new LinearGradientBrush(a, b, new Point(0, 0), new Point(1, 0));
         stroke.Freeze();
         line.Stroke = stroke;
-        line.Effect = new DropShadowEffect { Color = b, BlurRadius = 10, ShadowDepth = 0, Opacity = light ? 0.35 : 0.6 };
 
         var area = new LinearGradientBrush(
-            Color.FromArgb(light ? (byte)0x55 : (byte)0x66, b.R, b.G, b.B), Color.FromArgb(0x00, b.R, b.G, b.B),
+            Color.FromArgb(light ? (byte)0x38 : (byte)0x48, b.R, b.G, b.B), Color.FromArgb(0x00, b.R, b.G, b.B),
             new Point(0, 0), new Point(0, 1));
         area.Freeze();
         fill.Fill = area;
