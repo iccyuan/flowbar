@@ -132,15 +132,18 @@ public partial class DetailPopup : Window
         if (w <= 0 || h <= 0) { w = 270; h = 76; }
         EnsureGrid(w, h);
 
-        double max = 1024; // never flatter than 1 KB/s full scale
-        for (int i = from; i < n; i++) max = Math.Max(max, Math.Max(_rx[i], _tx[i]));
+        // Smooth over the past few samples only, so drawn history never changes as new samples arrive.
+        var srx = Causal(_rx, from, count);
+        var stx = Causal(_tx, from, count);
+        double peak = 0, max = 1024; // never flatter than 1 KB/s full scale
+        for (int i = from; i < n; i++) peak = Math.Max(peak, Math.Max(_rx[i], _tx[i]));
+        for (int i = 0; i < count; i++) max = Math.Max(max, Math.Max(srx[i], stx[i]));
         const double top = 18; // headroom so the labels along the top never sit on a spike
 
-        // Light Gaussian smoothing turns per-second jitter into a calm curve without flattening short spikes.
         double step = w / (window - 1);
         double x0 = w - (count - 1) * step;
-        var rx = Points(Gauss(_rx, from, count), x0, step, h, top, max);
-        var tx = Points(Gauss(_tx, from, count), x0, step, h, top, max);
+        var rx = Points(srx, x0, step, h, top, max);
+        var tx = Points(stx, x0, step, h, top, max);
         RxLine.Data = Curve(rx, h, closed: false);
         RxFill.Data = Curve(rx, h, closed: true);
         TxLine.Data = Curve(tx, h, closed: false);
@@ -152,25 +155,29 @@ public partial class DetailPopup : Window
         Color txA = ((SolidColorBrush)FindResource("ChartTx")).Color, txB = ((SolidColorBrush)FindResource("ChartTxEnd")).Color;
         Style(RxLine, RxFill, RxDot, rxA, rxB, rx, light);
         Style(TxLine, TxFill, TxDot, txA, txB, tx, light);
-        var (mv, mu) = Formatting.Rate(max, _cfg.Unit);
+        var (mv, mu) = Formatting.Rate(Math.Max(peak, 1024), _cfg.Unit);
         ChartMax.Text = $"峰值 {mv} {mu}";
         int span = Math.Max(1, (int)Math.Round(count * sampler.IntervalMs / 1000.0));
         ChartSpan.Text = span >= 60 ? $"最近 {span / 60} 分钟" : $"最近 {span} 秒";
     }
 
-    /// <summary>Gaussian-smoothed copy of <paramref name="v"/>[from..from+count); the kernel is cut off at the ends.</summary>
-    private static double[] Gauss(double[] v, int from, int count)
+    /// <summary>Samples that feed each smoothed point: itself and the ones just before it.</summary>
+    private const int SmoothSamples = 5;
+
+    /// <summary>
+    /// Triangular-weighted average of each sample and the <see cref="SmoothSamples"/> - 1 before it (newest heaviest).
+    /// Unlike a centred filter it never looks ahead, so a point is final the moment it is drawn.
+    /// </summary>
+    private static double[] Causal(double[] v, int from, int count)
     {
-        const double sigma = 1.0;
-        const int r = 3;
         var o = new double[count];
         for (int i = 0; i < count; i++)
         {
             double sum = 0, weight = 0;
-            for (int j = Math.Max(0, i - r); j <= Math.Min(count - 1, i + r); j++)
+            for (int j = 0; j < SmoothSamples && from + i - j >= 0; j++)
             {
-                double k = Math.Exp(-(j - i) * (j - i) / (2 * sigma * sigma));
-                sum += v[from + j] * k; weight += k;
+                double k = SmoothSamples - j;
+                sum += v[from + i - j] * k; weight += k;
             }
             o[i] = sum / weight;
         }

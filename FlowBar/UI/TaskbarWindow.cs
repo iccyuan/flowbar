@@ -643,7 +643,7 @@ public sealed class TaskbarWindow : Window
         MenuItem Choice<T>(string header, T current, T value, Action<T> set, string what)
             => Item(header, () => { set(value); OnSettingsChanged(what); }, Equals(current, value));
 
-        menu.Items.Add(Item("流量统计…", OpenApps));
+        menu.Items.Add(Item("流量统计", OpenApps));
         menu.Items.Add(new Separator());
 
         // Adapter

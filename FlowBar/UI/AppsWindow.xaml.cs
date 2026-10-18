@@ -375,12 +375,12 @@ public partial class AppsWindow : Window
         return row;
     }
 
-    /// <summary>Horizontal (or vertical) gradient between two theme colours.</summary>
-    private LinearGradientBrush Gradient(string from, string to, bool vertical = false)
+    /// <summary>Horizontal gradient between two theme colours.</summary>
+    private LinearGradientBrush Gradient(string from, string to)
     {
         var a = ((SolidColorBrush)FindResource(from)).Color;
         var b = ((SolidColorBrush)FindResource(to)).Color;
-        var br = new LinearGradientBrush(a, b, vertical ? new Point(0, 1) : new Point(0, 0), vertical ? new Point(0, 0) : new Point(1, 0));
+        var br = new LinearGradientBrush(a, b, new Point(0, 0), new Point(1, 0));
         br.Freeze();
         return br;
     }
@@ -396,63 +396,112 @@ public partial class AppsWindow : Window
         _dayKey = key;
 
         DayChart.Children.Clear();
-        const double labelH = 18, top = 6;
-        double plotH = h - labelH - top;
-        ulong max = 1;
-        foreach (var d in _perDay) max = Math.Max(max, d.rx + d.tx);
-        DayMax.Text = $"最高 {Formatting.Bytes(max)} / 天";
+        const double labelH = 20, top = 8, axisW = 48;
+        double plotH = h - labelH - top, plotW = w - axisW, baseY = h - labelH;
+        ulong peak = 1;
+        foreach (var d in _perDay) peak = Math.Max(peak, d.rx + d.tx);
+        DayMax.Text = $"最高 {Formatting.Bytes(peak)} / 天";
+        double max = NiceCeil(peak);
 
+        // Baseline plus a dashed guide at half and full scale, labelled on the left.
         var border = (Brush)FindResource("MenuBorder");
-        DayChart.Children.Add(new System.Windows.Shapes.Line { X1 = 0, X2 = w, Y1 = h - labelH + 0.5, Y2 = h - labelH + 0.5, Stroke = border, StrokeThickness = 1 });
-        // faint guide lines at 1/2 and full height
-        foreach (double f in new[] { 0.5, 1.0 })
+        var subtle = (Style)FindResource("Subtle");
+        for (int g = 0; g <= 2; g++)
         {
-            double y = Math.Round(h - labelH - plotH * f) + 0.5;
-            DayChart.Children.Add(new System.Windows.Shapes.Line { X1 = 0, X2 = w, Y1 = y, Y2 = y, Stroke = border, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 4 }, Opacity = 0.6 });
+            double y = Math.Round(baseY - plotH * g / 2) + 0.5;
+            DayChart.Children.Add(new System.Windows.Shapes.Line
+            {
+                X1 = axisW, X2 = w, Y1 = y, Y2 = y, Stroke = border, StrokeThickness = 1,
+                StrokeDashArray = g == 0 ? null : new DoubleCollection { 2, 4 }, Opacity = g == 0 ? 1 : 0.7,
+            });
+            if (g == 0) continue;
+            var tick = new TextBlock { Text = Tick(max * g / 2), Style = subtle, FontSize = 10.5, Width = axisW - 10, TextAlignment = TextAlignment.Right };
+            Canvas.SetLeft(tick, 0); Canvas.SetTop(tick, y - 8);
+            DayChart.Children.Add(tick);
         }
 
         int n = _perDay.Count;
-        double slot = w / n;
-        double barW = Math.Clamp(slot * 0.55, 6, 22);
-        double radius = Math.Min(4, barW / 2);
-        var rxBrush = Gradient("ChartRx", "ChartRxEnd", vertical: true);
-        var txBrush = Gradient("ChartTx", "ChartTxEnd", vertical: true);
-        var subtle = (Style)FindResource("Subtle");
+        double slot = plotW / n;
+        double barW = Math.Clamp(slot * 0.5, 6, 28);
+        double radius = Math.Min(5, barW / 3);
+        // One gradient over the whole plot height: tall days reach the light end, short days stay deep.
+        var rxBrush = PlotGradient("ChartRx", "ChartRxEnd", baseY, top);
+        var txBrush = PlotGradient("ChartTx", "ChartTxEnd", baseY, top);
+        var today = (Brush)FindResource("MenuFg");
         int labelEvery = n <= 7 ? 1 : n <= 14 ? 2 : 5;
+        var bars = new List<UIElement>(n);
         for (int i = 0; i < n; i++)
         {
             var (day, rx, tx) = _perDay[i];
-            double x = i * slot + (slot - barW) / 2;
-            double rxH = plotH * rx / max, txH = plotH * tx / max;
-            string tip = $"{day:M月d日}\n↓ {Formatting.Bytes(rx)}   ↑ {Formatting.Bytes(tx)}";
+            double x = axisW + i * slot + (slot - barW) / 2;
+            bool last = i == n - 1;
+            UIElement bar;
             if (rx + tx == 0)
             {
-                var stub = new Border { Width = barW, Height = 2, Background = border, Opacity = 0.8, ToolTip = tip };
-                Canvas.SetLeft(stub, x); Canvas.SetTop(stub, h - labelH - 2);
-                DayChart.Children.Add(stub);
+                bar = new System.Windows.Shapes.Path { Data = new RectangleGeometry(new Rect(x, baseY - 3, barW, 3), 1.5, 1.5), Fill = border };
             }
             else
             {
-                // Download bar with a rounded top; the upload piece sits on it, overlapping by the
-                // radius so the two read as one rounded column.
-                var rxBar = new Border { Width = barW, Height = Math.Max(2, rxH), Background = rxBrush, CornerRadius = new CornerRadius(radius, radius, 0, 0), ToolTip = tip };
-                Canvas.SetLeft(rxBar, x); Canvas.SetTop(rxBar, h - labelH - rxBar.Height);
-                DayChart.Children.Add(rxBar);
-                if (txH >= 1)
-                {
-                    var txBar = new Border { Width = barW, Height = txH + radius, Background = txBrush, CornerRadius = new CornerRadius(radius, radius, 0, 0), ToolTip = tip };
-                    Canvas.SetLeft(txBar, x); Canvas.SetTop(txBar, h - labelH - rxBar.Height - txH);
-                    DayChart.Children.Add(txBar);
-                }
+                // The column is clipped to one rounded shape; upload sits on download with a 1px seam
+                // once it is tall enough to spare it.
+                double total = Math.Max(3, plotH * (rx + tx) / max);
+                double txH = tx == 0 ? 0 : Math.Max(2, total * tx / (rx + tx));
+                double rxH = total - txH;
+                var col = new Canvas { Clip = new RectangleGeometry(new Rect(x, baseY - total, barW, total + radius), radius, radius) };
+                if (rxH > 0)
+                    col.Children.Add(new System.Windows.Shapes.Path { Data = new RectangleGeometry(new Rect(x, baseY - rxH, barW, rxH)), Fill = rxBrush });
+                if (txH > 0)
+                    col.Children.Add(new System.Windows.Shapes.Path { Data = new RectangleGeometry(new Rect(x, baseY - total, barW, txH - (rxH > 0 && txH > 4 ? 1 : 0))), Fill = txBrush });
+                bar = col;
             }
-            bool last = i == n - 1;
+            DayChart.Children.Add(bar);
+            bars.Add(bar);
+
+            // Full-height hit area: the tooltip works over the whole day, and hovering dims the other days.
+            var hit = new Border { Width = slot, Height = plotH + top, Background = Brushes.Transparent, ToolTip = $"{day:M月d日}\n↓ {Formatting.Bytes(rx)}   ↑ {Formatting.Bytes(tx)}" };
+            Canvas.SetLeft(hit, axisW + i * slot); Canvas.SetTop(hit, 0);
+            hit.MouseEnter += (_, _) => { foreach (var b in bars) b.Opacity = b == bar ? 1 : 0.4; };
+            hit.MouseLeave += (_, _) => { foreach (var b in bars) b.Opacity = 1; };
+            DayChart.Children.Add(hit);
+
             if (i % labelEvery == 0 || last)
             {
-                var lbl = new TextBlock { Text = last ? "今天" : day.Day.ToString(), Style = subtle, FontSize = 11, Width = slot, TextAlignment = TextAlignment.Center };
-                Canvas.SetLeft(lbl, i * slot); Canvas.SetTop(lbl, h - labelH + 3);
+                var lbl = new TextBlock { Text = last ? "今天" : day.Day.ToString(), Style = subtle, FontSize = 11, Width = slot + 20, TextAlignment = TextAlignment.Center };
+                if (last) { lbl.Foreground = today; lbl.FontWeight = FontWeights.SemiBold; }
+                Canvas.SetLeft(lbl, axisW + i * slot - 10); Canvas.SetTop(lbl, baseY + 4);
                 DayChart.Children.Add(lbl);
             }
         }
+    }
+
+    /// <summary>Bottom-to-top gradient pinned to the plot rather than to each bar.</summary>
+    private LinearGradientBrush PlotGradient(string from, string to, double bottom, double top)
+    {
+        var br = new LinearGradientBrush(((SolidColorBrush)FindResource(from)).Color, ((SolidColorBrush)FindResource(to)).Color,
+            new Point(0, bottom), new Point(0, top)) { MappingMode = BrushMappingMode.Absolute };
+        br.Freeze();
+        return br;
+    }
+
+    /// <summary>Rounds up to 1 / 1.5 / 2 / 3 / 4 / 5 / 6 / 8 × 10^k of a byte unit, so the guides land on readable values.</summary>
+    private static double NiceCeil(double v)
+    {
+        double unit = 1;
+        while (v / unit >= 1024) unit *= 1024;
+        double m = v / unit, p = Math.Pow(10, Math.Floor(Math.Log10(m)));
+        foreach (double s in new[] { 1, 1.5, 2, 3, 4, 5, 6, 8 })
+            if (s * p >= m) return s * p * unit;
+        return 10 * p * unit;
+    }
+
+    /// <summary>Axis label: <see cref="Formatting.Bytes"/> without trailing zeros ("4 GB", "1.5 GB").</summary>
+    private static string Tick(double bytes)
+    {
+        string s = Formatting.Bytes(bytes);
+        int sp = s.IndexOf(' ');
+        string num = s[..sp];
+        if (num.Contains('.')) num = num.TrimEnd('0').TrimEnd('.');
+        return num + s[sp..];
     }
 
     // ---- programs ----------------------------------------------------------
