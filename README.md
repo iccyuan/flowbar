@@ -35,7 +35,7 @@ dotnet publish FlowBar/FlowBar.csproj -c Release -r win-x64 --self-contained fal
 | 操作 | 效果 |
 | --- | --- |
 | 左键 | 详情面板：当前速率、最近 2 分钟曲线、今日 / 本月 / 本次流量、选择统计网卡 |
-| 右键 | 菜单：各程序流量与连接、网卡、显示位置（靠托盘 / 靠左 / 悬浮）、布局、单位、字体与字号、文字颜色、刷新间隔、开机自启、退出 |
+| 右键 | 菜单：流量统计、网卡、显示位置（靠托盘 / 靠左 / 悬浮）、布局、单位、字体与字号、文字颜色、刷新间隔、开机自启、退出 |
 | 悬浮模式下左键拖动 | 移动位置（自动记住） |
 
 配置文件：`%AppData%\FlowBar\config.json`，日志：`%AppData%\FlowBar\flowbar.log`。
